@@ -26,3 +26,16 @@ node_modules/
 
 # Cline/Claude AI
 .claude/
+
+# Generated brain mesh (run export_mesh.py to regenerate)
+assets/fsaverage5.obj
+
+# Contains HF token — never commit
+start_backend.bat
+
+# Video files
+*.mp4
+*.webm
+*.avi
+w_1_2.mp4
+w_1_4.mp4

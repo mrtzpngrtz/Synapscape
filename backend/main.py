@@ -47,13 +47,25 @@ except Exception as e:
 def run_inference(video_path: str) -> list:
     """Run TRIBE v2 on a video file. Returns list of activation arrays (one per TR)."""
     if not MODEL_LOADED:
-        # Demo mode: return 5 frames of random activations for ~20484 vertices
         n_vertices = 20484
         n_frames = 5
         return [(np.random.randn(n_vertices) * 0.5).tolist() for _ in range(n_frames)]
 
     events = model.get_events_dataframe(video_path=video_path)
-    preds, _ = model.predict(events)  # preds shape: (n_segments, n_vertices)
+
+    try:
+        preds, _ = model.predict(events, verbose=False)
+    except Exception as e:
+        # Llama text model is gated — retry with text events stripped out
+        if "gated" in str(e).lower() or "403" in str(e) or "Llama" in str(e):
+            print("Llama model not accessible — retrying video-only (no text features)")
+            events = events[events["type"] != "Word"]
+            preds, _ = model.predict(events, verbose=False)
+        else:
+            raise
+
+    if len(preds) == 0:
+        raise RuntimeError("No segments predicted — video may be too short or silent.")
     return [row.tolist() for row in preds]
 
 
