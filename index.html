@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>BRAINMETATRON — Neural Imaging System</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/style.css" />
+
+  <!-- Three.js r128 via CDN -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/OBJLoader.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+</head>
+<body>
+
+  <!-- ═══════════════════════════════ HEADER ═══════════════════════════════ -->
+  <header>
+    <div class="hdr-left">
+      <div class="hdr-sysid">SYS&#8209;001</div>
+      <div class="hdr-brand">
+        <div class="hdr-title">BRAINMETATRON</div>
+        <div class="hdr-sub">NEURAL IMAGING SYSTEM &nbsp;·&nbsp; v2.4.1 &nbsp;·&nbsp; 2026.04.03</div>
+      </div>
+    </div>
+
+    <!-- EEG-style waveform decoration -->
+    <div class="hdr-wave" aria-hidden="true">
+      <svg viewBox="0 0 240 20" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none">
+        <polyline points="0,10 12,10 17,3 22,17 27,3 32,17 37,10 52,10 57,5 62,15 67,5 72,15 77,10 92,10 95,7 100,13 105,10 120,10 125,4 130,16 135,10 150,10 155,6 160,14 165,10 180,10 184,8 188,12 192,10 210,10 215,5 220,15 225,10 240,10"/>
+      </svg>
+    </div>
+
+    <div class="hdr-right">
+      <div class="hdr-telem">
+        <div class="telem-cell">
+          <span class="telem-k">EEG_FREQ</span>
+          <span class="telem-v">14Hz</span>
+        </div>
+        <div class="telem-cell">
+          <span class="telem-k">CORTEX_SYNC</span>
+          <span class="telem-v hi">98.2%</span>
+        </div>
+        <div class="telem-cell">
+          <span class="telem-k">AI_CONF</span>
+          <span class="telem-v hi">0.994</span>
+        </div>
+        <div class="telem-cell">
+          <span class="telem-k">LATENCY</span>
+          <span class="telem-v">4ms</span>
+        </div>
+      </div>
+      <span id="status" class="status">Connecting to backend...</span>
+    </div>
+  </header>
+
+  <!-- ═══════════════════════════════ MAIN ════════════════════════════════ -->
+  <main>
+
+    <!-- ACQ-001 · Input Acquisition ─────────────────────────────────────── -->
+    <div class="acq-panel">
+      <div class="panel-hdr">
+        <span class="p-code">ACQ&#8209;001</span>
+        <span class="p-label">INPUT ACQUISITION</span>
+        <span class="p-rule" aria-hidden="true"></span>
+        <span class="p-meta">DIAG_RUN_04 &nbsp;·&nbsp; SESSION 0x3F2A &nbsp;·&nbsp; OPERATOR CTRL</span>
+      </div>
+      <div class="toolbar">
+        <div class="toolbar-group">
+
+          <label class="btn" for="videoInput">
+            <!-- upload icon -->
+            <svg class="ico" viewBox="0 0 12 12" xmlns="http://www.w3.org/2000/svg">
+              <rect x="1" y="4.5" width="10" height="7" rx="0" fill="none" stroke="currentColor" stroke-width="1.1"/>
+              <line x1="6" y1="0.5" x2="6" y2="7.5" stroke="currentColor" stroke-width="1.1"/>
+              <polyline points="3.5,3 6,0.5 8.5,3" fill="none" stroke="currentColor" stroke-width="1.1"/>
+            </svg>
+            Load Sequence
+            <input type="file" id="videoInput" accept="video/*" hidden />
+          </label>
+
+          <button id="webcamBtn" class="btn">
+            <!-- aperture icon -->
+            <svg class="ico" viewBox="0 0 12 12" xmlns="http://www.w3.org/2000/svg">
+              <circle cx="6" cy="6" r="4.5" fill="none" stroke="currentColor" stroke-width="1.1"/>
+              <circle cx="6" cy="6" r="1.5" fill="currentColor" opacity="0.7"/>
+            </svg>
+            Live Capture
+          </button>
+
+          <button id="stopBtn" class="btn btn-danger" disabled>
+            <!-- square icon -->
+            <svg class="ico" viewBox="0 0 12 12" xmlns="http://www.w3.org/2000/svg">
+              <rect x="2.5" y="2.5" width="7" height="7" fill="currentColor" opacity="0.8"/>
+            </svg>
+            Terminate
+          </button>
+
+        </div>
+        <div class="t-sep"></div>
+        <div class="toolbar-group">
+          <span class="ctrl-lbl">SPECTRAL MAP</span>
+          <select id="colormapSelect">
+            <option value="rdbu">RdBu &nbsp;— Blue/Red</option>
+            <option value="hot">Hot &nbsp;— Blk/Red/Yel</option>
+            <option value="viridis">Viridis</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <!-- NEURAL-VIEW-01 · Cortex Scan Viewport ───────────────────────────── -->
+    <div id="brainContainer">
+      <canvas id="brainCanvas"></canvas>
+
+      <!-- top-left telemetry -->
+      <div class="vc vc-tl">
+        <span class="vc-id">NEURAL&#8209;VIEW&#8209;01</span>
+        <span class="vc-row"><span class="vc-k">HEMISPHERE</span><span class="vc-v">BILATERAL</span></span>
+        <span class="vc-row"><span class="vc-k">MODALITY</span><span class="vc-v">fMRI / BOLD</span></span>
+        <span class="vc-row"><span class="vc-k">CORTEX_SYNC</span><span class="vc-v hi">98.2%</span></span>
+      </div>
+
+      <!-- top-right telemetry -->
+      <div class="vc vc-tr">
+        <span class="vc-row"><span class="vc-k">AI_CONF</span><span class="vc-v hi">0.994</span></span>
+        <span class="vc-row"><span class="vc-k">LATENCY</span><span class="vc-v">4ms</span></span>
+        <span class="vc-row"><span class="vc-k">MEM_REF</span><span class="vc-v">0x3A4F2C1D</span></span>
+      </div>
+
+      <!-- bottom-left telemetry -->
+      <div class="vc vc-bl">
+        <span class="vc-row"><span class="vc-k">EEG_FREQ</span><span class="vc-v">14Hz</span></span>
+        <span class="vc-row"><span class="vc-k">SNR</span><span class="vc-v">42.1dB</span></span>
+      </div>
+
+      <!-- targeting reticle (corner brackets only) -->
+      <div class="reticle" aria-hidden="true">
+        <svg viewBox="0 0 100 100" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
+          <polyline points="0,8 0,0 8,0"/>
+          <polyline points="92,0 100,0 100,8"/>
+          <polyline points="0,92 0,100 8,100"/>
+          <polyline points="92,100 100,100 100,92"/>
+        </svg>
+      </div>
+
+      <!-- loading overlay -->
+      <div id="loadingOverlay">
+        <span class="ld-code">DIAG_RUN_01</span>
+        <div class="spinner"></div>
+        <span id="loadingText">Initializing cortical mesh...</span>
+        <span class="ld-ref">SEQ &nbsp;·&nbsp; 0x00A1B2C3 &nbsp;·&nbsp; STANDBY</span>
+      </div>
+
+      <!-- spectral calibration strip -->
+      <div id="colorbar">
+        <span class="cb-lbl">LOW</span>
+        <canvas id="colorbarCanvas" width="200" height="10"></canvas>
+        <span class="cb-lbl">HIGH</span>
+      </div>
+    </div>
+
+    <!-- SEQ-A1 · Video Sequence ─────────────────────────────────────────── -->
+    <div id="videoWrapper" class="hidden">
+      <div class="stream-hdr">
+        <span class="p-code">SEQ&#8209;A1</span>
+        <span class="p-label">VIDEO SEQUENCE</span>
+      </div>
+      <video id="videoPreview" controls></video>
+      <div class="stream-meta">
+        <span class="sm-k">FRAME TELEMETRY</span>
+        <span id="frameInfo" class="sm-v">FRAME: —</span>
+      </div>
+    </div>
+
+    <!-- LIVE-01 · Live Capture ──────────────────────────────────────────── -->
+    <div id="webcamWrapper" class="hidden">
+      <div class="stream-hdr">
+        <span class="p-code">LIVE&#8209;01</span>
+        <span class="p-label">LIVE CAPTURE</span>
+        <span class="live-dot" aria-hidden="true"></span>
+      </div>
+      <video id="webcamPreview" autoplay muted playsinline></video>
+      <div class="stream-meta">
+        <span class="sm-k">ACQUISITION RATE</span>
+        <span class="sm-v">&#916;t: 3.0s &nbsp;·&nbsp; CONTINUOUS</span>
+      </div>
+    </div>
+
+  </main>
+
+  <script src="js/colormap.js"></script>
+  <script src="js/brain.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,25 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.env
+*.venv
+venv/
+.env
+
+# Temp / OS
+.DS_Store
+Thumbs.db
+*.tmp
+*.log
+
+# Check / debug scripts
+check_torch.py
+
+# Node
+node_modules/
+
+# IDE
+.vscode/settings.json
+.idea/
