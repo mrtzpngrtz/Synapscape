@@ -1,6 +1,6 @@
 # Synapscape
 
-**Synapscape** is a brain activity visualization tool that uses the [TRIBE v2](https://github.com/facebookresearch/CortexBench) model to predict fMRI brain responses to video stimuli and renders them as interactive 3D cortical surface maps.
+**Synapscape** is a brain activity visualization tool that uses [TRIBE v2](https://github.com/facebookresearch/tribev2) — Meta's transformer-based brain encoding model ([HuggingFace](https://huggingface.co/facebook/tribev2)) — to predict fMRI brain responses to video stimuli and renders them as interactive 3D cortical surface maps.
 
 ## Features
 
@@ -16,7 +16,7 @@
 |-------|-----------|
 | Frontend | Vanilla JS + Three.js |
 | Backend | Python · FastAPI · Uvicorn |
-| Brain model | TRIBE v2 (Meta AI) |
+| Brain model | [TRIBE v2](https://github.com/facebookresearch/tribev2) · [model](https://huggingface.co/facebook/tribev2) |
 | Transcription | WhisperX (large-v3 on GPU) |
 | Deep learning | PyTorch 2.8 + CUDA 12.6 |
 
