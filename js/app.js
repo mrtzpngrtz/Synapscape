@@ -25,11 +25,17 @@ const colormapSelect = document.getElementById('colormapSelect');
 const colorbarCanvas = document.getElementById('colorbarCanvas');
 const volumeSlider   = document.getElementById('volumeSlider');
 const volumeVal      = document.getElementById('volumeVal');
+const loopBtn        = document.getElementById('loopBtn');
+const loopStatus     = document.getElementById('loopStatus');
+const cycleNumEl     = document.getElementById('cycleNum');
+const loopFreqEl     = document.getElementById('loopFreq');
 
 // ── State ─────────────────────────────────────────────────────────────────
 let videoFrames = [];    // [{activations: [...]}] from /predict
 let videoFPS    = 2;     // TRIBE outputs ~1 frame per TR (2s); we'll sync by time
 let webcamWs    = null;
+let loopEnabled = false;
+let cycleCount  = 0;
 let mediaRecorder = null;
 let webcamStream  = null;
 let activeColormap = 'rdbu';
@@ -63,6 +69,55 @@ if (volumeSlider) {
   });
 }
 
+// ── View mode toggle ──────────────────────────────────────────────────────
+const viewMeshBtn      = document.getElementById('viewMeshBtn');
+const viewParticlesBtn = document.getElementById('viewParticlesBtn');
+
+viewMeshBtn.addEventListener('click', () => {
+  BrainRenderer.setMode('mesh');
+  viewMeshBtn.classList.add('btn-active');
+  viewParticlesBtn.classList.remove('btn-active');
+});
+
+viewParticlesBtn.addEventListener('click', () => {
+  BrainRenderer.setMode('particles');
+  viewParticlesBtn.classList.add('btn-active');
+  viewMeshBtn.classList.remove('btn-active');
+});
+
+// ── Loop sequence toggle ───────────────────────────────────────────────────
+loopBtn.addEventListener('click', () => {
+  loopEnabled = !loopEnabled;
+  loopBtn.classList.toggle('btn-active', loopEnabled);
+  if (!loopEnabled) {
+    loopStatus.classList.add('hidden');
+    cycleCount = 0;
+  } else if (videoPreview.duration) {
+    // Show freq immediately if video is already loaded
+    loopFreqEl.textContent = loopHz(videoPreview.duration);
+    loopStatus.classList.remove('hidden');
+  }
+});
+
+// On every loop: increment cycle, rewind, keep going
+videoPreview.addEventListener('ended', () => {
+  if (!loopEnabled) return;
+  cycleCount++;
+  cycleNumEl.textContent = String(cycleCount).padStart(3, '0');
+  loopFreqEl.textContent = loopHz(videoPreview.duration);
+  loopStatus.classList.remove('hidden');
+  videoPreview.currentTime = 0;
+  videoPreview.play();
+});
+
+function loopHz(duration) {
+  if (!duration || duration === Infinity) return '—\u00a0Hz';
+  const hz = 1 / duration;
+  return hz < 0.01
+    ? hz.toExponential(2) + '\u00a0Hz'
+    : hz.toFixed(3) + '\u00a0Hz';
+}
+
 // Check backend health
 checkBackend();
 
@@ -93,7 +148,7 @@ videoInput.addEventListener('change', async () => {
   videoWrapper.classList.remove('hidden');
 
   setStatus('Predicting...', 'busy');
-  showLoading('Running TRIBE v2 inference...');
+  showLoading('Uploading sequence…');
   stopBtn.disabled = false;
 
   try {
@@ -104,12 +159,21 @@ videoInput.addEventListener('change', async () => {
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
     const data = await res.json();
-    videoFrames = data.frames;  // array of activation arrays
+
+    if (data.cached) {
+      // Instant cache hit
+      videoFrames = data.frames;
+      setStatus(`${videoFrames.length} frames — cached · play video`, 'ok');
+    } else if (data.task_id) {
+      // Async — poll until done
+      videoFrames = await pollTask(data.task_id);
+      setStatus(`${videoFrames.length} frames — play video`, 'ok');
+    } else if (data.frames) {
+      videoFrames = data.frames;
+      setStatus(`${videoFrames.length} frames — play video`, 'ok');
+    }
 
     hideLoading();
-    setStatus(`${videoFrames.length} frames — play video`, 'ok');
-
-    // Start syncing brain to video playback
     startVideoSync();
 
   } catch (e) {
@@ -118,6 +182,21 @@ videoInput.addEventListener('change', async () => {
     console.error(e);
   }
 });
+
+async function pollTask(taskId) {
+  const POLL_MS = 900;
+  while (true) {
+    await new Promise(r => setTimeout(r, POLL_MS));
+    const res = await fetch(`${API}/task/${taskId}`);
+    if (!res.ok) throw new Error(`Poll error HTTP ${res.status}`);
+    const data = await res.json();
+    if (data.status === 'done') return data.frames;
+    if (data.status === 'error') throw new Error(data.error);
+    // Still running — show the step label from the backend
+    showLoading(data.progress || 'Processing…');
+    setStatus('TRIBE v2 inference running…', 'busy');
+  }
+}
 
 function startVideoSync() {
   // TRIBE output rate: 1 frame per ~2s of video (hemodynamic TR)
@@ -243,6 +322,12 @@ function stopAll() {
     webcamWs.close();
     webcamWs = null;
   }
+  // Reset loop
+  loopEnabled = false;
+  cycleCount  = 0;
+  loopBtn.classList.remove('btn-active');
+  loopStatus.classList.add('hidden');
+
   // Hide previews
   videoWrapper.classList.add('hidden');
   webcamWrapper.classList.add('hidden');

@@ -101,6 +101,28 @@
         </div>
         <div class="t-sep"></div>
         <div class="toolbar-group">
+          <button id="viewMeshBtn" class="btn btn-active">
+            <svg class="ico" viewBox="0 0 12 12" xmlns="http://www.w3.org/2000/svg">
+              <circle cx="6" cy="6" r="4.5" fill="none" stroke="currentColor" stroke-width="1.1"/>
+              <line x1="1.5" y1="6" x2="10.5" y2="6" stroke="currentColor" stroke-width="0.9" opacity=".6"/>
+              <line x1="6" y1="1.5" x2="6" y2="10.5" stroke="currentColor" stroke-width="0.9" opacity=".6"/>
+            </svg>
+            Surface
+          </button>
+          <button id="viewParticlesBtn" class="btn">
+            <svg class="ico" viewBox="0 0 12 12" xmlns="http://www.w3.org/2000/svg">
+              <circle cx="3"  cy="5"  r="0.9" fill="currentColor"/>
+              <circle cx="6"  cy="3"  r="1.2" fill="currentColor"/>
+              <circle cx="9"  cy="5"  r="0.7" fill="currentColor"/>
+              <circle cx="5"  cy="8"  r="1.4" fill="currentColor"/>
+              <circle cx="8"  cy="8.5" r="0.8" fill="currentColor"/>
+              <circle cx="2"  cy="8"  r="0.6" fill="currentColor"/>
+            </svg>
+            Particles
+          </button>
+        </div>
+        <div class="t-sep"></div>
+        <div class="toolbar-group">
           <span class="ctrl-lbl">SPECTRAL MAP</span>
           <select id="colormapSelect">
             <option value="rdbu">RdBu &nbsp;— Blue/Red</option>
@@ -164,6 +186,29 @@
         <span class="sm-k">FRAME TELEMETRY</span>
         <span id="frameInfo" class="sm-v">FRAME: —</span>
       </div>
+
+      <!-- LOOP SEQUENCE control -->
+      <div class="loop-ctrl">
+        <button id="loopBtn" class="btn">
+          <!-- cycling arrows icon -->
+          <svg class="ico" viewBox="0 0 12 12" xmlns="http://www.w3.org/2000/svg">
+            <path d="M1.5,4 Q1.5,1.5 4,1.5 L8,1.5" fill="none" stroke="currentColor" stroke-width="1.05" stroke-linecap="round"/>
+            <polyline points="6,0 8,1.5 6,3"    fill="none" stroke="currentColor" stroke-width="1.05" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M10.5,8 Q10.5,10.5 8,10.5 L4,10.5" fill="none" stroke="currentColor" stroke-width="1.05" stroke-linecap="round"/>
+            <polyline points="6,9 4,10.5 6,12"  fill="none" stroke="currentColor" stroke-width="1.05" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          LOOP SEQ
+        </button>
+        <div id="loopStatus" class="loop-status hidden">
+          <span class="loop-pip" aria-hidden="true"></span>
+          <span class="sm-k">CYCLE</span>
+          <span id="cycleNum"  class="loop-val">001</span>
+          <span class="loop-sep">·</span>
+          <span class="sm-k">LOOP&nbsp;FREQ</span>
+          <span id="loopFreq"  class="loop-val">—&nbsp;Hz</span>
+        </div>
+      </div>
+
       <div class="vol-ctrl">
         <!-- speaker icon -->
         <svg class="ico" viewBox="0 0 12 12" xmlns="http://www.w3.org/2000/svg" style="opacity:.45">

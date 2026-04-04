@@ -313,6 +313,12 @@ main {
   cursor: not-allowed;
 }
 
+.btn-active {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--aglow);
+}
+
 .btn-danger {
   border-color: rgba(239, 68, 68, 0.28);
   color: rgba(239, 68, 68, 0.55);
@@ -457,6 +463,11 @@ option { background: #111113; color: var(--text); }
   font-size: 11px;
   letter-spacing: 0.1em;
   color: var(--dim);
+  max-width: 420px;
+  text-align: center;
+  line-height: 1.6;
+  min-height: 2.4em;  /* prevent layout shift as step labels change */
+  transition: opacity 0.2s;
 }
 
 .ld-ref {
@@ -568,6 +579,55 @@ option { background: #111113; color: var(--text); }
   box-shadow: 0 0 8px var(--accent);
   animation: neural-pulse 1.4s ease-in-out infinite;
   margin-top: 4px;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   LOOP SEQUENCE CONTROL
+   ═══════════════════════════════════════════════════════════════════════════ */
+.loop-ctrl {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 8px;
+  padding: 0 16px;
+  border-left: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.loop-status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.loop-pip {
+  display: block;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--warn);
+  box-shadow: 0 0 7px var(--warn);
+  animation: loop-cycle 0.72s ease-in-out infinite;
+  flex-shrink: 0;
+}
+
+@keyframes loop-cycle {
+  0%, 100% { opacity: 1;   transform: scale(1); }
+  50%       { opacity: 0.3; transform: scale(0.65); }
+}
+
+.loop-val {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.07em;
+  color: var(--warn);
+}
+
+.loop-sep {
+  font-family: var(--mono);
+  font-size: 9px;
+  color: var(--muted);
+  padding: 0 2px;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════

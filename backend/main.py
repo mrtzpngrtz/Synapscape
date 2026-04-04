@@ -6,22 +6,24 @@ Start:
     uvicorn main:app --host 0.0.0.0 --port 8000
 
 Endpoints:
-    GET  /            health check
-    POST /predict     upload video file → returns per-frame vertex activations
-    WS   /ws          receive binary webcam chunks → stream back activations
+    GET  /              health check
+    POST /predict       upload video → returns task_id immediately
+    GET  /task/{id}     poll task status / result
+    WS   /ws            receive binary webcam chunks → stream back activations
 """
 
 import os
 import json
+import hashlib
+import uuid
 import tempfile
 import asyncio
 import numpy as np
-from fastapi import FastAPI, UploadFile, File, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, UploadFile, File, WebSocket, WebSocketDisconnect, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI()
 
-# Allow requests from XAMPP (localhost) and common dev origins
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -43,22 +45,46 @@ except Exception as e:
     print(f"WARNING: Could not load TRIBE v2: {e}")
     print("Running in DEMO MODE — random activations will be returned.")
 
+# ---------------------------------------------------------------------------
+# In-memory stores
+# ---------------------------------------------------------------------------
+result_cache: dict = {}   # md5_hex  → list[list[float]]
+task_store:   dict = {}   # task_id  → {status, progress, frames, error}
 
-def run_inference(video_path: str) -> list:
+
+def _file_md5(path: str) -> str:
+    h = hashlib.md5()
+    with open(path, "rb") as f:
+        for chunk in iter(lambda: f.read(65536), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+# ---------------------------------------------------------------------------
+# Inference
+# ---------------------------------------------------------------------------
+def run_inference(video_path: str, task_id: str | None = None) -> list:
     """Run TRIBE v2 on a video file. Returns list of activation arrays (one per TR)."""
+
+    def _step(msg: str):
+        if task_id and task_id in task_store:
+            task_store[task_id]["progress"] = msg
+
     if not MODEL_LOADED:
+        _step("Demo mode — generating random activations...")
         n_vertices = 20484
         n_frames = 5
         return [(np.random.randn(n_vertices) * 0.5).tolist() for _ in range(n_frames)]
 
+    _step("Extracting multimodal events (audio · speech · video)…")
     events = model.get_events_dataframe(video_path=video_path)
 
+    _step("Running TRIBE v2 — encoding video segments (this takes a while)…")
     try:
         preds, _ = model.predict(events, verbose=False)
     except Exception as e:
-        # Llama text model is gated — retry with text events stripped out
         if "gated" in str(e).lower() or "403" in str(e) or "Llama" in str(e):
-            print("Llama model not accessible — retrying video-only (no text features)")
+            _step("Llama not accessible — retrying video-only…")
             events = events[events["type"] != "Word"]
             preds, _ = model.predict(events, verbose=False)
         else:
@@ -66,7 +92,30 @@ def run_inference(video_path: str) -> list:
 
     if len(preds) == 0:
         raise RuntimeError("No segments predicted — video may be too short or silent.")
+
+    _step("Finalising results…")
     return [row.tolist() for row in preds]
+
+
+async def _run_task(task_id: str, video_path: str, fhash: str):
+    """Background coroutine: run inference, cache result, update task store."""
+    try:
+        loop = asyncio.get_event_loop()
+        frames = await loop.run_in_executor(
+            None, run_inference, video_path, task_id
+        )
+        result_cache[fhash] = frames
+        task_store[task_id]["frames"] = frames
+        task_store[task_id]["status"] = "done"
+    except Exception as e:
+        task_store[task_id]["status"] = "error"
+        task_store[task_id]["error"] = str(e)
+        print(f"Task {task_id} failed: {e}")
+    finally:
+        try:
+            os.unlink(video_path)
+        except OSError:
+            pass
 
 
 # ---------------------------------------------------------------------------
@@ -80,10 +129,12 @@ async def health():
 
 @app.post("/predict")
 async def predict(file: UploadFile = File(...)):
-    """Accept a video file, run inference, return per-frame activations."""
+    """
+    Accept a video, return task_id immediately.
+    If result is already cached for this file, return frames directly.
+    """
     suffix = os.path.splitext(file.filename or "video.mp4")[1] or ".mp4"
 
-    # Write upload to a temp file (Windows needs delete=False)
     tmp = tempfile.NamedTemporaryFile(suffix=suffix, delete=False)
     try:
         content = await file.read()
@@ -91,16 +142,55 @@ async def predict(file: UploadFile = File(...)):
         tmp.flush()
         tmp.close()
 
-        frames = await asyncio.get_event_loop().run_in_executor(
-            None, run_inference, tmp.name
-        )
-    finally:
+        fhash = _file_md5(tmp.name)
+
+        # Cache hit — instant response
+        if fhash in result_cache:
+            try:
+                os.unlink(tmp.name)
+            except OSError:
+                pass
+            frames = result_cache[fhash]
+            return {"frames": frames, "n_frames": len(frames), "cached": True}
+
+        # New file — kick off background task
+        task_id = str(uuid.uuid4())
+        task_store[task_id] = {
+            "status":   "running",
+            "progress": "Queued…",
+            "frames":   None,
+            "error":    None,
+        }
+        asyncio.create_task(_run_task(task_id, tmp.name, fhash))
+        return {"task_id": task_id}
+
+    except Exception:
         try:
             os.unlink(tmp.name)
         except OSError:
             pass
+        raise
 
-    return {"frames": frames, "n_frames": len(frames)}
+
+@app.get("/task/{task_id}")
+async def get_task(task_id: str):
+    """Poll task status. Returns frames when done."""
+    if task_id not in task_store:
+        raise HTTPException(status_code=404, detail="Task not found")
+
+    task = task_store[task_id]
+
+    if task["status"] == "done":
+        frames = task["frames"]
+        del task_store[task_id]
+        return {"status": "done", "frames": frames, "n_frames": len(frames)}
+
+    if task["status"] == "error":
+        error = task["error"]
+        del task_store[task_id]
+        return {"status": "error", "error": error}
+
+    return {"status": "running", "progress": task["progress"]}
 
 
 @app.websocket("/ws")
@@ -114,7 +204,6 @@ async def webcam_ws(websocket: WebSocket):
         while True:
             data = await websocket.receive_bytes()
 
-            # Save chunk to temp file
             tmp = tempfile.NamedTemporaryFile(suffix=".webm", delete=False)
             try:
                 tmp.write(data)
@@ -123,9 +212,8 @@ async def webcam_ws(websocket: WebSocket):
 
                 try:
                     frames = await asyncio.get_event_loop().run_in_executor(
-                        None, run_inference, tmp.name
+                        None, run_inference, tmp.name, None
                     )
-                    # Send last frame of the chunk (most recent brain state)
                     if frames:
                         await websocket.send_text(json.dumps({
                             "activations": frames[-1]

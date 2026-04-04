@@ -4,19 +4,28 @@
  * Views:  ANTERIOR · POSTERIOR · L·LATERAL · R·LATERAL
  * Input:  drag anywhere to rotate the brain mesh (with inertia)
  *
- * Public API (unchanged):
+ * Modes:
+ *   'mesh'      — PBR surface with vertex colour activation map
+ *   'particles' — white glowing point cloud; activation magnitude → particle size
+ *
+ * Public API:
  *   BrainRenderer.init(canvasEl)
  *   BrainRenderer.setActivations(arr, colormapName)
+ *   BrainRenderer.setMode('mesh' | 'particles')
  *   BrainRenderer.onReady(fn)
  */
 
 const BrainRenderer = (() => {
-  let renderer, scene, brainMesh;
-  let _onReadyCb = null;
-  let meshLoaded  = false;
-  let nVertices   = 0;
+  let renderer, scene;
+  let brainMesh    = null;
+  let particlesMesh = null;
+  let brainGroup   = null;   // parent of both — rotated by drag
+  let _onReadyCb   = null;
+  let meshLoaded   = false;
+  let nVertices    = 0;
+  let mode         = 'mesh';
 
-  // ── 4 fixed cameras — brain mesh rotates, cameras stay still ─────────────
+  // ── 4 fixed cameras — brain group rotates, cameras stay still ─────────────
   const VIEWS = [
     { label: 'ANTERIOR',    pos: [   0, 0,  220], up: [0, 1, 0] },
     { label: 'POSTERIOR',   pos: [   0, 0, -220], up: [0, 1, 0] },
@@ -29,6 +38,31 @@ const BrainRenderer = (() => {
   let isDragging = false;
   let lastMouse  = { x: 0, y: 0 };
   let velX = 0, velY = 0;
+
+  // ── Particle shader ───────────────────────────────────────────────────────
+  const PARTICLE_VERT = `
+    attribute float aSize;
+    varying   float vSize;
+    void main() {
+      vSize = aSize;
+      vec4 mv = modelViewMatrix * vec4(position, 1.0);
+      gl_PointSize = aSize * (280.0 / -mv.z);
+      gl_Position  = projectionMatrix * mv;
+    }
+  `;
+  const PARTICLE_FRAG = `
+    varying float vSize;
+    void main() {
+      vec2  uv = gl_PointCoord - 0.5;
+      float d  = length(uv);
+      if (d > 0.5) discard;
+      // Gaussian-ish soft falloff
+      float falloff    = 1.0 - smoothstep(0.0, 0.5, d);
+      // Dim when small (resting), bright when large (active)
+      float brightness = mix(0.25, 1.0, clamp((vSize - 1.0) / 5.5, 0.0, 1.0));
+      gl_FragColor = vec4(1.0, 1.0, 1.0, falloff * brightness);
+    }
+  `;
 
   // ── init ──────────────────────────────────────────────────────────────────
   function init(canvas) {
@@ -49,17 +83,17 @@ const BrainRenderer = (() => {
       cameras.push(cam);
     }
 
-    // — Lighting: key + cool fill + under-fill + warm top-rear —
+    // — Lighting (used by mesh mode) —
     scene.add(new THREE.AmbientLight(0xffffff, 0.30));
     const addDir = (hex, intensity, x, y, z) => {
       const l = new THREE.DirectionalLight(hex, intensity);
       l.position.set(x, y, z);
       scene.add(l);
     };
-    addDir(0xffffff, 1.1,   1,  1,  1);   // key
-    addDir(0x99aaff, 0.45, -1,  0.5, -1); // cool fill
-    addDir(0xffffff, 0.30,  0, -1,  0);   // under
-    addDir(0xffeecc, 0.20,  0,  1, -1);   // warm rear
+    addDir(0xffffff, 1.1,   1,  1,  1);
+    addDir(0x99aaff, 0.45, -1,  0.5, -1);
+    addDir(0xffffff, 0.30,  0, -1,  0);
+    addDir(0xffeecc, 0.20,  0,  1, -1);
 
     // — Drag interaction —
     const startDrag = (x, y) => {
@@ -68,13 +102,13 @@ const BrainRenderer = (() => {
       velX = velY = 0;
     };
     const moveDrag = (x, y) => {
-      if (!isDragging || !brainMesh) return;
+      if (!isDragging || !brainGroup) return;
       const dx = x - lastMouse.x;
       const dy = y - lastMouse.y;
       lastMouse = { x, y };
       const s = 0.006;
-      brainMesh.rotation.y += dx * s;
-      brainMesh.rotation.x += dy * s;
+      brainGroup.rotation.y += dx * s;
+      brainGroup.rotation.x += dy * s;
       velX = dx * s;
       velY = dy * s;
     };
@@ -102,10 +136,9 @@ const BrainRenderer = (() => {
 
     (function animate() {
       requestAnimationFrame(animate);
-      // Inertia
-      if (!isDragging && brainMesh) {
-        brainMesh.rotation.y += velX;
-        brainMesh.rotation.x += velY;
+      if (!isDragging && brainGroup) {
+        brainGroup.rotation.y += velX;
+        brainGroup.rotation.x += velY;
         velX *= 0.90;
         velY *= 0.90;
       }
@@ -114,20 +147,17 @@ const BrainRenderer = (() => {
   }
 
   // ── Render 4 viewports on one canvas ─────────────────────────────────────
-  // Three.js r128 setViewport/setScissor take CSS-pixel values (internally × pixelRatio).
-  // WebGL y=0 is the BOTTOM of the canvas, so top-row quads have y = ch/2.
   function renderViewports() {
     const cw = renderer.domElement.clientWidth;
     const ch = renderer.domElement.clientHeight;
     const hw = cw / 2;
     const hh = ch / 2;
 
-    //              left  bottom  w    h        → screen position
     const vps = [
-      [0,   hh, hw, hh], // top-left  → ANTERIOR
-      [hw,  hh, hw, hh], // top-right → POSTERIOR
-      [0,   0,  hw, hh], // bot-left  → L · LATERAL
-      [hw,  0,  hw, hh], // bot-right → R · LATERAL
+      [0,   hh, hw, hh],
+      [hw,  hh, hw, hh],
+      [0,   0,  hw, hh],
+      [hw,  0,  hw, hh],
     ];
 
     for (let i = 0; i < 4; i++) {
@@ -166,33 +196,64 @@ const BrainRenderer = (() => {
     nVertices = posArr.length / 3;
     console.log(`Brain mesh: ${nVertices} vertices, ${idxArr.length / 3} faces`);
 
+    // ── Shared geometry base ─────────────────────────────────────────────
     const geo = new THREE.BufferGeometry();
     geo.setAttribute('position', new THREE.Float32BufferAttribute(posArr, 3));
     geo.setIndex(idxArr);
-    geo.computeVertexNormals();          // smooth shading
+    geo.computeVertexNormals();
     geo.normalizeNormals();
 
-    // Default flat-grey vertex colours
-    const colors = new Float32Array(nVertices * 3).fill(0.32);
-    geo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
-
-    // Centre mesh on origin
+    // Centre on origin
     geo.computeBoundingBox();
     const center = new THREE.Vector3();
     geo.boundingBox.getCenter(center);
     geo.translate(-center.x, -center.y, -center.z);
 
-    // PBR material — much smoother/richer than MeshPhong
-    const mat = new THREE.MeshStandardMaterial({
+    // ── Mesh mode ────────────────────────────────────────────────────────
+    const colors = new Float32Array(nVertices * 3).fill(0.32);
+    geo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+
+    const meshMat = new THREE.MeshStandardMaterial({
       vertexColors: true,
       roughness:    0.68,
       metalness:    0.04,
     });
 
-    brainMesh = new THREE.Mesh(geo, mat);
-    // Tilt slightly forward for a nicer default angle
-    brainMesh.rotation.x = 0.18;
-    scene.add(brainMesh);
+    brainMesh = new THREE.Mesh(geo, meshMat);
+
+    // ── Particle mode ────────────────────────────────────────────────────
+    const pGeo = new THREE.BufferGeometry();
+    // Clone positions (already centred via geo.translate in-place)
+    pGeo.setAttribute('position', new THREE.Float32BufferAttribute(posArr.slice(), 3));
+
+    // Translate particle positions by the same centre offset
+    const pos = pGeo.attributes.position;
+    for (let i = 0; i < pos.count; i++) {
+      pos.setXYZ(i, pos.getX(i) - center.x, pos.getY(i) - center.y, pos.getZ(i) - center.z);
+    }
+    pos.needsUpdate = true;
+
+    const sizes = new Float32Array(nVertices).fill(1.5);
+    pGeo.setAttribute('aSize', new THREE.Float32BufferAttribute(sizes, 1));
+
+    const pMat = new THREE.ShaderMaterial({
+      vertexShader:   PARTICLE_VERT,
+      fragmentShader: PARTICLE_FRAG,
+      transparent:    true,
+      depthWrite:     false,
+      blending:       THREE.AdditiveBlending,
+    });
+
+    particlesMesh = new THREE.Points(pGeo, pMat);
+    particlesMesh.visible = false; // mesh mode is default
+
+    // ── Parent group — both share rotation ───────────────────────────────
+    brainGroup = new THREE.Group();
+    brainGroup.rotation.x = 0.18; // slight forward tilt
+    brainGroup.add(brainMesh);
+    brainGroup.add(particlesMesh);
+    scene.add(brainGroup);
+
     meshLoaded = true;
     if (_onReadyCb) _onReadyCb(nVertices);
   }
@@ -204,16 +265,48 @@ const BrainRenderer = (() => {
     renderer.setSize(canvas.clientWidth, canvas.clientHeight, false);
   }
 
-  // ── Public: update vertex colours from activation array ──────────────────
+  // ── Public: switch between mesh and particle views ───────────────────────
+  function setMode(m) {
+    mode = m;
+    if (brainMesh)     brainMesh.visible     = (m === 'mesh');
+    if (particlesMesh) particlesMesh.visible = (m === 'particles');
+  }
+
+  // ── Public: update vertex colours (mesh) and particle sizes ──────────────
   function setActivations(activations, colormapName = 'rdbu') {
-    if (!meshLoaded || !brainMesh) return;
-    const colorAttr = brainMesh.geometry.attributes.color;
-    const n = colorAttr.count;
-    let src = activations;
-    if (src.length < n) src = [...src, ...new Array(n - src.length).fill(0)];
-    const colors = activationsToColors(src.slice(0, n), colormapName);
-    colorAttr.array.set(colors);
-    colorAttr.needsUpdate = true;
+    if (!meshLoaded) return;
+
+    const n = nVertices;
+    let src = activations.length < n
+      ? [...activations, ...new Array(n - activations.length).fill(0)]
+      : activations;
+    src = src.slice(0, n);
+
+    // — Mesh: vertex colour map —
+    if (brainMesh) {
+      const colorAttr = brainMesh.geometry.attributes.color;
+      const colors = activationsToColors(src, colormapName);
+      colorAttr.array.set(colors);
+      colorAttr.needsUpdate = true;
+    }
+
+    // — Particles: size from absolute activation magnitude —
+    if (particlesMesh) {
+      const sizeAttr = particlesMesh.geometry.attributes.aSize;
+      const BASE = 1.0, RANGE = 5.5;
+
+      let maxAbs = 0;
+      for (let i = 0; i < n; i++) {
+        const a = Math.abs(src[i]);
+        if (a > maxAbs) maxAbs = a;
+      }
+      if (maxAbs === 0) maxAbs = 1;
+
+      for (let i = 0; i < n; i++) {
+        sizeAttr.array[i] = BASE + (Math.abs(src[i]) / maxAbs) * RANGE;
+      }
+      sizeAttr.needsUpdate = true;
+    }
   }
 
   function onReady(fn) {
@@ -221,5 +314,5 @@ const BrainRenderer = (() => {
     if (meshLoaded) fn(nVertices);
   }
 
-  return { init, setActivations, onReady };
+  return { init, setActivations, setMode, onReady };
 })();
