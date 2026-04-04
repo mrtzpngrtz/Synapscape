@@ -18,6 +18,7 @@ import hashlib
 import uuid
 import tempfile
 import asyncio
+import time
 import numpy as np
 from fastapi import FastAPI, UploadFile, File, WebSocket, WebSocketDisconnect, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -99,13 +100,16 @@ def run_inference(video_path: str, task_id: str | None = None) -> list:
 
 async def _run_task(task_id: str, video_path: str, fhash: str):
     """Background coroutine: run inference, cache result, update task store."""
+    t0 = time.time()
     try:
         loop = asyncio.get_event_loop()
         frames = await loop.run_in_executor(
             None, run_inference, video_path, task_id
         )
-        result_cache[fhash] = frames
+        inference_ms = int((time.time() - t0) * 1000)
+        result_cache[fhash] = {"frames": frames, "inference_ms": inference_ms}
         task_store[task_id]["frames"] = frames
+        task_store[task_id]["inference_ms"] = inference_ms
         task_store[task_id]["status"] = "done"
     except Exception as e:
         task_store[task_id]["status"] = "error"
@@ -150,8 +154,9 @@ async def predict(file: UploadFile = File(...)):
                 os.unlink(tmp.name)
             except OSError:
                 pass
-            frames = result_cache[fhash]
-            return {"frames": frames, "n_frames": len(frames), "cached": True}
+            cached = result_cache[fhash]
+            return {"frames": cached["frames"], "n_frames": len(cached["frames"]),
+                    "inference_ms": cached["inference_ms"], "cached": True}
 
         # New file — kick off background task
         task_id = str(uuid.uuid4())
@@ -181,9 +186,11 @@ async def get_task(task_id: str):
     task = task_store[task_id]
 
     if task["status"] == "done":
-        frames = task["frames"]
+        frames       = task["frames"]
+        inference_ms = task.get("inference_ms", 0)
         del task_store[task_id]
-        return {"status": "done", "frames": frames, "n_frames": len(frames)}
+        return {"status": "done", "frames": frames, "n_frames": len(frames),
+                "inference_ms": inference_ms}
 
     if task["status"] == "error":
         error = task["error"]

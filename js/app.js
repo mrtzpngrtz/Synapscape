@@ -25,10 +25,19 @@ const colormapSelect = document.getElementById('colormapSelect');
 const colorbarCanvas = document.getElementById('colorbarCanvas');
 const volumeSlider   = document.getElementById('volumeSlider');
 const volumeVal      = document.getElementById('volumeVal');
+const fovSlider      = document.getElementById('fovSlider');
+const fovVal         = document.getElementById('fovVal');
+const zoomResetBtn   = document.getElementById('zoomResetBtn');
+const blendSlider    = document.getElementById('blendSlider');
+const blendVal       = document.getElementById('blendVal');
 const loopBtn        = document.getElementById('loopBtn');
 const loopStatus     = document.getElementById('loopStatus');
 const cycleNumEl     = document.getElementById('cycleNum');
 const loopFreqEl     = document.getElementById('loopFreq');
+const telemBoldFreq  = document.getElementById('telemBoldFreq');
+const telemCortexSync = document.getElementById('telemCortexSync');
+const telemAiConf    = document.getElementById('telemAiConf');
+const telemLatency   = document.getElementById('telemLatency');
 
 // ── State ─────────────────────────────────────────────────────────────────
 let videoFrames = [];    // [{activations: [...]}] from /predict
@@ -42,6 +51,25 @@ let activeColormap = 'rdbu';
 
 // ── Init ──────────────────────────────────────────────────────────────────
 BrainRenderer.init(document.getElementById('brainCanvas'));
+SynapscapeGraph.init();
+SynapscapeGraph.setColormap(activeColormap);
+
+fovSlider.addEventListener('input', () => {
+  const v = parseInt(fovSlider.value);
+  BrainRenderer.setFOV(v);
+  fovVal.textContent = v + '°';
+});
+
+zoomResetBtn.addEventListener('click', () => {
+  BrainRenderer.setZoom(1.0);
+});
+
+blendSlider.addEventListener('input', () => {
+  const v = parseFloat(blendSlider.value);
+  BrainRenderer.setBlend(v);
+  blendVal.textContent = v.toFixed(2);
+});
+BrainRenderer.setBlend(parseFloat(blendSlider.value));
 
 BrainRenderer.onReady((nVertices) => {
   loadingOverlay.classList.add('hidden');
@@ -54,6 +82,7 @@ drawColorbar(colorbarCanvas, activeColormap);
 colormapSelect.addEventListener('change', () => {
   activeColormap = colormapSelect.value;
   drawColorbar(colorbarCanvas, activeColormap);
+  SynapscapeGraph.setColormap(activeColormap);
 });
 
 // ── Volume slider ──────────────────────────────────────────────────────────
@@ -72,6 +101,7 @@ if (volumeSlider) {
 // ── View mode toggle ──────────────────────────────────────────────────────
 const viewMeshBtn      = document.getElementById('viewMeshBtn');
 const viewParticlesBtn = document.getElementById('viewParticlesBtn');
+const viewGraphBtn     = document.getElementById('viewGraphBtn');
 
 viewMeshBtn.addEventListener('click', () => {
   BrainRenderer.setMode('mesh');
@@ -83,6 +113,11 @@ viewParticlesBtn.addEventListener('click', () => {
   BrainRenderer.setMode('particles');
   viewParticlesBtn.classList.add('btn-active');
   viewMeshBtn.classList.remove('btn-active');
+});
+
+viewGraphBtn.addEventListener('click', () => {
+  const on = SynapscapeGraph.toggle();
+  viewGraphBtn.classList.toggle('btn-active', on);
 });
 
 // ── Loop sequence toggle ───────────────────────────────────────────────────
@@ -109,6 +144,34 @@ videoPreview.addEventListener('ended', () => {
   videoPreview.currentTime = 0;
   videoPreview.play();
 });
+
+// ── Telemetry helpers ─────────────────────────────────────────────────────
+function updateTelemetryOnLoad(inferenceMs) {
+  const duration = videoPreview.duration || 1;
+  const boldHz   = videoFrames.length / duration;
+  telemBoldFreq.textContent = boldHz.toFixed(2) + ' Hz';
+
+  const s = inferenceMs / 1000;
+  telemLatency.textContent  = s < 60
+    ? s.toFixed(1) + ' s'
+    : Math.round(s / 60) + ' min ' + (Math.round(s) % 60) + ' s';
+}
+
+function updateTelemetryPerFrame(activations) {
+  const n = activations.length;
+  // AI_CONF: normalised mean absolute activation → [0, 1]
+  let sumAbs = 0;
+  for (let i = 0; i < n; i++) sumAbs += Math.abs(activations[i]);
+  const meanAbs = sumAbs / n;
+  // Typical fMRI z-score magnitude ~0.3–2.0; map to feel like a confidence
+  const conf = Math.min(0.9999, meanAbs / 2.5);
+  telemAiConf.textContent = conf.toFixed(4);
+
+  // CORTEX_SYNC: % of vertices with |activation| > 1 z-score
+  let active = 0;
+  for (let i = 0; i < n; i++) if (Math.abs(activations[i]) > 1.0) active++;
+  telemCortexSync.textContent = ((active / n) * 100).toFixed(1) + '%';
+}
 
 function loopHz(duration) {
   if (!duration || duration === Infinity) return '—\u00a0Hz';
@@ -160,13 +223,15 @@ videoInput.addEventListener('change', async () => {
 
     const data = await res.json();
 
+    let inferenceMs = 0;
     if (data.cached) {
-      // Instant cache hit
       videoFrames = data.frames;
+      inferenceMs = data.inference_ms || 0;
       setStatus(`${videoFrames.length} frames — cached · play video`, 'ok');
     } else if (data.task_id) {
-      // Async — poll until done
-      videoFrames = await pollTask(data.task_id);
+      const result = await pollTask(data.task_id);
+      videoFrames = result.frames;
+      inferenceMs = result.inference_ms || 0;
       setStatus(`${videoFrames.length} frames — play video`, 'ok');
     } else if (data.frames) {
       videoFrames = data.frames;
@@ -174,6 +239,10 @@ videoInput.addEventListener('change', async () => {
     }
 
     hideLoading();
+    // Wait for duration to be available, then update telem
+    const onMeta = () => { updateTelemetryOnLoad(inferenceMs); videoPreview.removeEventListener('loadedmetadata', onMeta); };
+    if (videoPreview.duration) updateTelemetryOnLoad(inferenceMs);
+    else videoPreview.addEventListener('loadedmetadata', onMeta);
     startVideoSync();
 
   } catch (e) {
@@ -190,7 +259,7 @@ async function pollTask(taskId) {
     const res = await fetch(`${API}/task/${taskId}`);
     if (!res.ok) throw new Error(`Poll error HTTP ${res.status}`);
     const data = await res.json();
-    if (data.status === 'done') return data.frames;
+    if (data.status === 'done') return data;
     if (data.status === 'error') throw new Error(data.error);
     // Still running — show the step label from the backend
     showLoading(data.progress || 'Processing…');
@@ -212,7 +281,9 @@ function syncBrainToVideo() {
     videoFrames.length - 1
   );
   BrainRenderer.setActivations(videoFrames[idx], activeColormap);
+  SynapscapeGraph.update(videoFrames[idx]);
   frameInfo.textContent = `Frame: ${idx + 1} / ${videoFrames.length}`;
+  updateTelemetryPerFrame(videoFrames[idx]);
 }
 
 // ── Webcam ────────────────────────────────────────────────────────────────
@@ -246,6 +317,7 @@ async function startWebcam() {
       const msg = JSON.parse(evt.data);
       if (msg.activations) {
         BrainRenderer.setActivations(msg.activations, activeColormap);
+        SynapscapeGraph.update(msg.activations);
         setStatus('Webcam live — brain updating', 'ok');
       } else if (msg.error) {
         console.warn('Inference error:', msg.error);

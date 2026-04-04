@@ -19,11 +19,15 @@ const BrainRenderer = (() => {
   let renderer, scene;
   let brainMesh    = null;
   let particlesMesh = null;
-  let brainGroup   = null;   // parent of both — rotated by drag
+  let brainGroup   = null;
   let _onReadyCb   = null;
   let meshLoaded   = false;
   let nVertices    = 0;
-  let mode         = 'mesh';
+
+  let _prevActivations = null;
+  let _blendAmount     = 0.5;
+  let _zoom            = 1.0;
+  let _fov             = 38;
 
   // ── 4 fixed cameras — brain group rotates, cameras stay still ─────────────
   const VIEWS = [
@@ -72,7 +76,7 @@ const BrainRenderer = (() => {
     resize();
 
     scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x03030a);
+    scene.background = new THREE.Color(0x080808);
 
     // — 4 cameras —
     for (const v of VIEWS) {
@@ -130,6 +134,33 @@ const BrainRenderer = (() => {
       if (e.touches.length === 1) { e.preventDefault(); moveDrag(e.touches[0].clientX, e.touches[0].clientY); }
     }, { passive: false });
     canvas.addEventListener('touchend', () => endDrag());
+
+    // — Scroll zoom —
+    canvas.addEventListener('wheel', e => {
+      e.preventDefault();
+      _zoom *= e.deltaY < 0 ? 1.06 : 0.94;
+      _zoom = Math.max(0.2, Math.min(4.0, _zoom));
+      if (brainGroup) brainGroup.scale.setScalar(_zoom);
+    }, { passive: false });
+
+    // — Pinch zoom —
+    let _pinchDist = null;
+    canvas.addEventListener('touchstart', e => {
+      if (e.touches.length === 2)
+        _pinchDist = Math.hypot(e.touches[0].clientX - e.touches[1].clientX,
+                                e.touches[0].clientY - e.touches[1].clientY);
+    }, { passive: false });
+    canvas.addEventListener('touchmove', e => {
+      if (e.touches.length !== 2 || _pinchDist === null) return;
+      e.preventDefault();
+      const d = Math.hypot(e.touches[0].clientX - e.touches[1].clientX,
+                           e.touches[0].clientY - e.touches[1].clientY);
+      _zoom *= d / _pinchDist;
+      _zoom = Math.max(0.2, Math.min(4.0, _zoom));
+      if (brainGroup) brainGroup.scale.setScalar(_zoom);
+      _pinchDist = d;
+    }, { passive: false });
+    canvas.addEventListener('touchend', e => { if (e.touches.length < 2) _pinchDist = null; });
 
     loadMesh();
     window.addEventListener('resize', resize);
@@ -267,9 +298,28 @@ const BrainRenderer = (() => {
 
   // ── Public: switch between mesh and particle views ───────────────────────
   function setMode(m) {
-    mode = m;
     if (brainMesh)     brainMesh.visible     = (m === 'mesh');
     if (particlesMesh) particlesMesh.visible = (m === 'particles');
+  }
+
+  // ── Public: zoom (0.2 – 4.0) ─────────────────────────────────────────────
+  function setZoom(v) {
+    _zoom = Math.max(0.2, Math.min(4.0, v));
+    if (brainGroup) brainGroup.scale.setScalar(_zoom);
+  }
+
+  // ── Public: field of view in degrees (10 – 90) ────────────────────────────
+  function setFOV(deg) {
+    _fov = Math.max(10, Math.min(90, deg));
+    for (const cam of cameras) {
+      cam.fov = _fov;
+      cam.updateProjectionMatrix();
+    }
+  }
+
+  // ── Public: set blend amount (0 = hard cut, 1 = full interpolation) ───────
+  function setBlend(amount) {
+    _blendAmount = Math.max(0, Math.min(1, amount));
   }
 
   // ── Public: update vertex colours (mesh) and particle sizes ──────────────
@@ -277,10 +327,20 @@ const BrainRenderer = (() => {
     if (!meshLoaded) return;
 
     const n = nVertices;
-    let src = activations.length < n
+    let next = activations.length < n
       ? [...activations, ...new Array(n - activations.length).fill(0)]
-      : activations;
-    src = src.slice(0, n);
+      : activations.slice(0, n);
+
+    // Blend with previous frame
+    let src = next;
+    if (_prevActivations && _blendAmount > 0) {
+      src = new Array(n);
+      const t = _blendAmount;
+      for (let i = 0; i < n; i++) {
+        src[i] = _prevActivations[i] * t + next[i] * (1 - t);
+      }
+    }
+    _prevActivations = next;
 
     // — Mesh: vertex colour map —
     if (brainMesh) {
@@ -294,14 +354,12 @@ const BrainRenderer = (() => {
     if (particlesMesh) {
       const sizeAttr = particlesMesh.geometry.attributes.aSize;
       const BASE = 1.0, RANGE = 5.5;
-
       let maxAbs = 0;
       for (let i = 0; i < n; i++) {
         const a = Math.abs(src[i]);
         if (a > maxAbs) maxAbs = a;
       }
       if (maxAbs === 0) maxAbs = 1;
-
       for (let i = 0; i < n; i++) {
         sizeAttr.array[i] = BASE + (Math.abs(src[i]) / maxAbs) * RANGE;
       }
@@ -314,5 +372,5 @@ const BrainRenderer = (() => {
     if (meshLoaded) fn(nVertices);
   }
 
-  return { init, setActivations, setMode, onReady };
+  return { init, setActivations, setBlend, setZoom, setFOV, setMode, onReady };
 })();

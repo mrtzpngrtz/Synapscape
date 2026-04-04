@@ -1,17 +1,17 @@
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 :root {
-  --bg:      #09090B;
-  --panel:   #0C0C0F;
-  --border:  #27272A;
-  --border2: #1C1C1F;
-  --accent:  #00F0FF;
-  --aglow:   rgba(0, 240, 255, 0.18);
-  --text:    #F4F4F5;
-  --dim:     #71717A;
-  --muted:   #3F3F46;
-  --danger:  #EF4444;
-  --warn:    #FFB000;
+  --bg:      #080808;
+  --panel:   #0D0D0D;
+  --border:  #282828;
+  --border2: #1A1A1A;
+  --accent:  #FFFFFF;
+  --aglow:   rgba(255, 255, 255, 0.08);
+  --text:    #F5F5F5;
+  --dim:     #707070;
+  --muted:   #404040;
+  --danger:  #C8C8C8;
+  --warn:    #888888;
   --mono:    'JetBrains Mono', 'Roboto Mono', 'Courier New', monospace;
   --sans:    'Inter', 'Helvetica Neue', system-ui, sans-serif;
 }
@@ -164,7 +164,7 @@ header {
 }
 .status.ok {
   color: var(--accent);
-  border-color: rgba(0, 240, 255, 0.3);
+  border-color: rgba(255, 255, 255, 0.2);
 }
 .status.ok::before {
   background: var(--accent);
@@ -173,7 +173,7 @@ header {
 }
 .status.busy {
   color: var(--warn);
-  border-color: rgba(255, 176, 0, 0.3);
+  border-color: rgba(136, 136, 136, 0.3);
 }
 .status.busy::before {
   background: var(--warn);
@@ -181,7 +181,7 @@ header {
 }
 .status.err {
   color: var(--danger);
-  border-color: rgba(239, 68, 68, 0.3);
+  border-color: rgba(255, 255, 255, 0.2);
 }
 .status.err::before {
   background: var(--danger);
@@ -306,7 +306,7 @@ main {
 .btn:hover:not(:disabled) {
   border-color: var(--accent);
   color: var(--accent);
-  background: rgba(0, 240, 255, 0.04);
+  background: rgba(255, 255, 255, 0.04);
 }
 .btn:disabled {
   opacity: 0.22;
@@ -320,13 +320,13 @@ main {
 }
 
 .btn-danger {
-  border-color: rgba(239, 68, 68, 0.28);
-  color: rgba(239, 68, 68, 0.55);
+  border-color: rgba(255, 255, 255, 0.18);
+  color: rgba(255, 255, 255, 0.4);
 }
 .btn-danger:hover:not(:disabled) {
   border-color: var(--danger);
   color: var(--danger);
-  background: rgba(239, 68, 68, 0.04);
+  background: rgba(255, 255, 255, 0.03);
 }
 
 /* Inline SVG icons */
@@ -352,7 +352,7 @@ select {
 }
 select:hover  { border-color: var(--accent); color: var(--text); }
 select:focus  { outline: none; border-color: var(--accent); }
-option { background: #111113; color: var(--text); }
+option { background: #111111; color: var(--text); }
 
 /* ═══════════════════════════════════════════════════════════════════════════
    NEURAL-VIEW-01 · BRAIN VIEWPORT
@@ -417,7 +417,7 @@ option { background: #111113; color: var(--text); }
 .vc-v.hi {
   color: var(--accent);
   /* only the accent values get the subtle glow — matches "AI processing" */
-  text-shadow: 0 0 10px rgba(0, 240, 255, 0.4);
+  text-shadow: 0 0 10px rgba(255, 255, 255, 0.2);
 }
 
 /* ── Targeting reticle ── */
@@ -486,7 +486,7 @@ option { background: #111113; color: var(--text); }
   border-radius: 50%;
   animation: spin 1.1s linear infinite;
   /* only the accent element gets a glow */
-  box-shadow: 0 0 14px rgba(0, 240, 255, 0.25);
+  box-shadow: 0 0 14px rgba(255, 255, 255, 0.12);
 }
 @keyframes spin { to { transform: rotate(360deg); } }
 
@@ -665,11 +665,11 @@ input[type="range"]::-webkit-slider-thumb {
   background: var(--accent);
   border-radius: 0;
   cursor: pointer;
-  box-shadow: 0 0 6px rgba(0, 240, 255, 0.45);
+  box-shadow: 0 0 6px rgba(255, 255, 255, 0.3);
   transition: box-shadow 0.15s;
 }
 input[type="range"]:hover::-webkit-slider-thumb {
-  box-shadow: 0 0 12px rgba(0, 240, 255, 0.7);
+  box-shadow: 0 0 12px rgba(255, 255, 255, 0.5);
 }
 input[type="range"]::-moz-range-track {
   height: 2px;
