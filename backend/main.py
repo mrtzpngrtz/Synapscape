@@ -19,11 +19,19 @@ import uuid
 import tempfile
 import asyncio
 import time
+import logging
 import numpy as np
 from fastapi import FastAPI, UploadFile, File, WebSocket, WebSocketDisconnect, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI()
+
+# Suppress poll-request clutter from the task-status endpoint
+class _SuppressTaskPolling(logging.Filter):
+    def filter(self, record):
+        return '/task/' not in record.getMessage()
+
+logging.getLogger('uvicorn.access').addFilter(_SuppressTaskPolling())
 
 app.add_middleware(
     CORSMiddleware,

@@ -198,18 +198,151 @@ header {
 main {
   flex: 1;
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   overflow: hidden;
-  /* no padding — panels own their own borders */
 }
 
-/* Panel header row — shared by acq-panel and stream panels */
+/* ── Left sidebar ── */
+.sidebar {
+  width: 210px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--panel);
+  border-right: 1px solid var(--border);
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.sb-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 8px 8px;
+  border-bottom: 1px solid var(--border2);
+}
+.sb-actions .btn {
+  justify-content: flex-start;
+  width: 100%;
+  font-size: 8.5px;
+}
+
+.sb-media {
+  display: flex;
+  flex-direction: column;
+  border-bottom: 1px solid var(--border2);
+}
+.sb-media.hidden { display: none !important; }
+
+.sb-media-hdr {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 10px;
+  border-bottom: 1px solid var(--border2);
+  flex-shrink: 0;
+}
+
+.sb-row {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 6px 10px;
+}
+
+.sb-divider {
+  height: 1px;
+  background: var(--border2);
+  margin: 0;
+}
+
+.sb-loop {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 10px;
+}
+
+.sb-vol {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+}
+.sb-vol input[type="range"] { width: auto; flex: 1; }
+
+/* ── Viewport area ── */
+.viewport-area {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-width: 0;
+}
+
+/* ── Tab bar ── */
+.tab-bar {
+  display: flex;
+  align-items: stretch;
+  background: var(--panel);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+  height: 38px;
+}
+
+.tab-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 0 18px;
+  background: transparent;
+  border: none;
+  border-right: 1px solid var(--border2);
+  border-bottom: 2px solid transparent;
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: color 0.12s, border-bottom-color 0.12s, background 0.12s;
+  white-space: nowrap;
+  user-select: none;
+}
+.tab-btn:hover { color: var(--dim); background: rgba(255,255,255,0.02); }
+.tab-btn.tab-active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+  background: rgba(255,255,255,0.025);
+}
+
+/* ── Per-tab settings strip ── */
+.tab-settings {
+  display: flex;
+  align-items: center;
+  padding: 0 14px;
+  height: 36px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--border2);
+  flex-shrink: 0;
+  gap: 0;
+}
+.tab-settings.hidden { display: none !important; }
+
+.sg {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* Panel header row */
 .panel-hdr {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 5px 14px;
+  gap: 8px;
+  padding: 5px 10px;
   border-bottom: 1px solid var(--border2);
+  flex-shrink: 0;
 }
 
 .p-code {
@@ -246,31 +379,13 @@ main {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   ACQ-001 · ACQUISITION PANEL
+   SETTINGS STRIP SHARED ATOMS
    ═══════════════════════════════════════════════════════════════════════════ */
-.acq-panel {
-  flex-shrink: 0;
-  background: var(--panel);
-  border-bottom: 1px solid var(--border);
-}
-
-.toolbar {
-  display: flex;
-  align-items: center;
-  padding: 6px 14px;
-}
-
-.toolbar-group {
-  display: flex;
-  align-items: center;
-  gap: 3px;
-}
-
 .t-sep {
   width: 1px;
   height: 20px;
   background: var(--border);
-  margin: 0 16px;
+  margin: 0 14px;
   flex-shrink: 0;
 }
 
@@ -355,6 +470,53 @@ select:focus  { outline: none; border-color: var(--accent); }
 option { background: #111111; color: var(--text); }
 
 /* ═══════════════════════════════════════════════════════════════════════════
+   FRAME TIMELINE
+   ═══════════════════════════════════════════════════════════════════════════ */
+#frameTimeline {
+  height: 32px;
+  flex-shrink: 0;
+  position: relative;
+  background: #0d0d0d;
+  border-top: 1px solid #1e1e1e;
+  border-bottom: 1px solid #1e1e1e;
+  cursor: pointer;
+  user-select: none;
+}
+
+#timelineCanvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+#timelinePlayhead {
+  position: absolute;
+  top: 4px;
+  bottom: 4px;
+  left: 0;
+  width: 2px;
+  background: var(--accent);
+  border-radius: 1px;
+  opacity: 0.9;
+  pointer-events: none;
+  box-shadow: 0 0 6px var(--accent);
+}
+
+#timelineLabel {
+  position: absolute;
+  top: 50%;
+  left: 10px;
+  transform: translateY(-50%);
+  font-family: var(--mono);
+  font-size: 7.5px;
+  letter-spacing: 0.14em;
+  color: #3a3a3a;
+  pointer-events: none;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
    NEURAL-VIEW-01 · BRAIN VIEWPORT
    ═══════════════════════════════════════════════════════════════════════════ */
 #brainContainer {
@@ -439,6 +601,7 @@ option { background: #111111; color: var(--text); }
 #loadingOverlay {
   position: absolute;
   inset: 0;
+  z-index: 20;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -514,43 +677,15 @@ option { background: #111111; color: var(--text); }
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   SEQ-A1 / LIVE-01 · STREAM PANELS
+   SEQ-A1 / LIVE-01 · SIDEBAR STREAM PANELS
    ═══════════════════════════════════════════════════════════════════════════ */
-#videoWrapper,
-#webcamWrapper {
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  background: var(--panel);
-  border-bottom: 1px solid var(--border);
-}
-
-.stream-hdr {
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  gap: 4px;
-  padding: 10px 16px;
-  border-right: 1px solid var(--border);
-  min-width: 110px;
-  align-self: stretch;
-}
-
 #videoPreview,
 #webcamPreview {
-  height: 68px;
+  width: 100%;
+  height: auto;
   background: #000;
-  border-right: 1px solid var(--border);
   display: block;
   flex-shrink: 0;
-}
-
-.stream-meta {
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-  padding: 0 18px;
-  flex: 1;
 }
 
 .sm-k {
@@ -580,6 +715,10 @@ option { background: #111111; color: var(--text); }
   animation: neural-pulse 1.4s ease-in-out infinite;
   margin-top: 4px;
 }
+
+/* ── Button size variants ── */
+.btn-sm { font-size: 8px; padding: 5px 10px; }
+.btn-xs { font-size: 8px; padding: 3px 8px; }
 
 /* ═══════════════════════════════════════════════════════════════════════════
    LOOP SEQUENCE CONTROL
@@ -631,7 +770,7 @@ option { background: #111111; color: var(--text); }
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   VOLUME CONTROL
+   VOLUME CONTROL (legacy class kept for compat)
    ═══════════════════════════════════════════════════════════════════════════ */
 .vol-ctrl {
   display: flex;
@@ -729,6 +868,62 @@ input[type="range"]::-moz-range-thumb {
   width: 1px;
   background: var(--border);
   opacity: 0.7;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   EMOTION VIEW · CSS2D labels
+   ═══════════════════════════════════════════════════════════════════════════ */
+.em-label {
+  display:        flex;
+  flex-direction: column;
+  align-items:    flex-start;
+  gap:            2px;
+  transform:      translateY(-50%);
+  pointer-events: none;
+}
+
+/* labels on the right of their anchor push away from brain */
+.em-label-right {
+  transform:      translate(6px, -50%);
+  align-items:    flex-start;
+}
+.em-label-left {
+  transform:      translate(calc(-100% - 6px), -50%);
+  align-items:    flex-end;
+}
+
+.em-name {
+  font-family:    var(--mono);
+  font-size:      7px;
+  letter-spacing: 0.14em;
+  color:          #888888;
+  text-transform: uppercase;
+  white-space:    nowrap;
+  line-height:    1;
+}
+
+.em-pct {
+  font-family:    var(--mono);
+  font-size:      10px;
+  letter-spacing: 0.04em;
+  color:          #cccccc;
+  line-height:    1;
+}
+
+.em-bar {
+  width:          44px;
+  height:         2px;
+  background:     #1a1a1a;
+  border-radius:  1px;
+  overflow:       hidden;
+}
+
+.em-bar-fill {
+  height:         100%;
+  width:          0%;
+  background:     #ffffff;
+  border-radius:  1px;
+  transition:     width 0.05s linear;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════

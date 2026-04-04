@@ -28,20 +28,29 @@ const BrainRenderer = (() => {
   let _blendAmount     = 0.5;
   let _zoom            = 1.0;
   let _fov             = 38;
+  let _particleScale   = 1.0;
+  let _singleView      = null;   // index into BASE_DIRS, or null for 4-up
 
-  // ── 4 fixed cameras — brain group rotates, cameras stay still ─────────────
-  const VIEWS = [
-    { label: 'ANTERIOR',    pos: [   0, 0,  220], up: [0, 1, 0] },
-    { label: 'POSTERIOR',   pos: [   0, 0, -220], up: [0, 1, 0] },
-    { label: 'L · LATERAL', pos: [-220, 0,    0], up: [0, 1, 0] },
-    { label: 'R · LATERAL', pos: [ 220, 0,    0], up: [0, 1, 0] },
-  ];
+  // ── Camera orbit state (Cinema 4D–style turntable) ───────────────────────
+  // Horizontal drag = azimuth (around world Y).  Vertical drag = elevation.
+  // Up vector is always (0,1,0) — no roll, no arcball weirdness.
+  // Cameras orbit around the brain; brain never rotates.
+  const DIST    = 220;
+  // Base azimuth per viewport (radians, 0 = +Z front)
+  const BASE_AZ = [0, Math.PI, -Math.PI / 2, Math.PI / 2]; // ANT · POST · L·LAT · R·LAT
+  const ELEV_MAX = Math.PI * 0.48;   // ~86 °, prevent pole flip
+  const SENSE    = 0.007;            // radians per pixel  (≈ 0.4 °/px, like C4D)
+  const DECAY    = 0.86;
+
+  let azimuth   = 0;   // shared orbit offset applied to all cameras
+  let elevation = 0;
+  let velAz     = 0;   // inertia velocities
+  let velEl     = 0;
   const cameras = [];
 
-  // ── Drag / inertia state ──────────────────────────────────────────────────
+  // ── Drag state ────────────────────────────────────────────────────────────
   let isDragging = false;
   let lastMouse  = { x: 0, y: 0 };
-  let velX = 0, velY = 0;
 
   // ── Particle shader ───────────────────────────────────────────────────────
   const PARTICLE_VERT = `
@@ -78,13 +87,9 @@ const BrainRenderer = (() => {
     scene = new THREE.Scene();
     scene.background = new THREE.Color(0x080808);
 
-    // — 4 cameras —
-    for (const v of VIEWS) {
-      const cam = new THREE.PerspectiveCamera(38, 1, 0.1, 900);
-      cam.position.set(...v.pos);
-      cam.up.set(...v.up);
-      cam.lookAt(0, 0, 0);
-      cameras.push(cam);
+    // — 4 cameras (positions set dynamically in renderViewports via orbitQ) —
+    for (let i = 0; i < 4; i++) {
+      cameras.push(new THREE.PerspectiveCamera(38, 1, 0.1, 900));
     }
 
     // — Lighting (used by mesh mode) —
@@ -99,22 +104,21 @@ const BrainRenderer = (() => {
     addDir(0xffffff, 0.30,  0, -1,  0);
     addDir(0xffeecc, 0.20,  0,  1, -1);
 
-    // — Drag interaction —
+    // — Cinema 4D–style orbit drag —
     const startDrag = (x, y) => {
       isDragging = true;
       lastMouse  = { x, y };
-      velX = velY = 0;
+      velAz = velEl = 0;
     };
     const moveDrag = (x, y) => {
-      if (!isDragging || !brainGroup) return;
+      if (!isDragging) return;
       const dx = x - lastMouse.x;
       const dy = y - lastMouse.y;
-      lastMouse = { x, y };
-      const s = 0.006;
-      brainGroup.rotation.y += dx * s;
-      brainGroup.rotation.x += dy * s;
-      velX = dx * s;
-      velY = dy * s;
+      velAz      = -dx * SENSE;
+      velEl      =  dy * SENSE;
+      azimuth   += velAz;
+      elevation  = Math.max(-ELEV_MAX, Math.min(ELEV_MAX, elevation + velEl));
+      lastMouse  = { x, y };
     };
     const endDrag = () => {
       isDragging = false;
@@ -135,13 +139,20 @@ const BrainRenderer = (() => {
     }, { passive: false });
     canvas.addEventListener('touchend', () => endDrag());
 
-    // — Scroll zoom —
+    // — Scroll zoom (responds to trackpad magnitude) —
     canvas.addEventListener('wheel', e => {
       e.preventDefault();
-      _zoom *= e.deltaY < 0 ? 1.06 : 0.94;
-      _zoom = Math.max(0.2, Math.min(4.0, _zoom));
+      const factor = Math.exp(-e.deltaY * 0.0012);
+      _zoom = Math.max(0.25, Math.min(4.0, _zoom * factor));
       if (brainGroup) brainGroup.scale.setScalar(_zoom);
     }, { passive: false });
+
+    // — Double-click to reset view —
+    canvas.addEventListener('dblclick', () => {
+      _zoom = 1.0;
+      azimuth = elevation = velAz = velEl = 0;
+      if (brainGroup) brainGroup.scale.setScalar(1.0);
+    });
 
     // — Pinch zoom —
     let _pinchDist = null;
@@ -167,11 +178,12 @@ const BrainRenderer = (() => {
 
     (function animate() {
       requestAnimationFrame(animate);
-      if (!isDragging && brainGroup) {
-        brainGroup.rotation.y += velX;
-        brainGroup.rotation.x += velY;
-        velX *= 0.90;
-        velY *= 0.90;
+      // Inertia — continues after release, decays to stop
+      if (!isDragging && (Math.abs(velAz) > 0.00005 || Math.abs(velEl) > 0.00005)) {
+        azimuth   += velAz;
+        elevation  = Math.max(-ELEV_MAX, Math.min(ELEV_MAX, elevation + velEl));
+        velAz     *= DECAY;
+        velEl     *= DECAY;
       }
       renderViewports();
     })();
@@ -181,6 +193,30 @@ const BrainRenderer = (() => {
   function renderViewports() {
     const cw = renderer.domElement.clientWidth;
     const ch = renderer.domElement.clientHeight;
+
+    // Position cameras via spherical coords — azimuth+elevation shared offset
+    for (let i = 0; i < 4; i++) {
+      const az = BASE_AZ[i] + azimuth;
+      const el = elevation;
+      cameras[i].position.set(
+        Math.sin(az) * Math.cos(el) * DIST,
+        Math.sin(el) * DIST,
+        Math.cos(az) * Math.cos(el) * DIST
+      );
+      cameras[i].up.set(0, 1, 0);   // world up always — no roll
+      cameras[i].lookAt(0, 0, 0);
+    }
+
+    // Single-view mode (used by Affect tab)
+    if (_singleView !== null) {
+      renderer.setViewport(0, 0, cw, ch);
+      renderer.setScissor(0, 0, cw, ch);
+      cameras[_singleView].aspect = cw / ch;
+      cameras[_singleView].updateProjectionMatrix();
+      renderer.render(scene, cameras[_singleView]);
+      return;
+    }
+
     const hw = cw / 2;
     const hh = ch / 2;
 
@@ -278,9 +314,8 @@ const BrainRenderer = (() => {
     particlesMesh = new THREE.Points(pGeo, pMat);
     particlesMesh.visible = false; // mesh mode is default
 
-    // ── Parent group — both share rotation ───────────────────────────────
+    // ── Parent group — brain is fixed, cameras orbit ─────────────────────
     brainGroup = new THREE.Group();
-    brainGroup.rotation.x = 0.18; // slight forward tilt
     brainGroup.add(brainMesh);
     brainGroup.add(particlesMesh);
     scene.add(brainGroup);
@@ -322,6 +357,10 @@ const BrainRenderer = (() => {
     _blendAmount = Math.max(0, Math.min(1, amount));
   }
 
+  function setParticleScale(v) {
+    _particleScale = Math.max(0.3, Math.min(3.0, v));
+  }
+
   // ── Public: update vertex colours (mesh) and particle sizes ──────────────
   function setActivations(activations, colormapName = 'rdbu') {
     if (!meshLoaded) return;
@@ -361,7 +400,7 @@ const BrainRenderer = (() => {
       }
       if (maxAbs === 0) maxAbs = 1;
       for (let i = 0; i < n; i++) {
-        sizeAttr.array[i] = BASE + (Math.abs(src[i]) / maxAbs) * RANGE;
+        sizeAttr.array[i] = (BASE + (Math.abs(src[i]) / maxAbs) * RANGE) * _particleScale;
       }
       sizeAttr.needsUpdate = true;
     }
@@ -372,5 +411,28 @@ const BrainRenderer = (() => {
     if (meshLoaded) fn(nVertices);
   }
 
-  return { init, setActivations, setBlend, setZoom, setFOV, setMode, onReady };
+  // ── Single-viewport mode (index 2 = L·LATERAL for Affect tab) ────────────
+  function setSingleView(idx) { _singleView = idx; }
+  function clearSingleView()  { _singleView = null; }
+  function getCamera(idx)     { return cameras[idx]; }
+
+  // Add/remove objects from brainGroup so they follow drag rotation
+  function addToBrainGroup(obj)      { if (brainGroup) brainGroup.add(obj); }
+  function removeFromBrainGroup(obj) { if (brainGroup) brainGroup.remove(obj); }
+
+  // ── Per-tab view state save / restore ─────────────────────────────────────
+  function getViewState() {
+    return { azimuth, elevation, zoom: _zoom };
+  }
+
+  function setViewState(state) {
+    if (!state) return;
+    velAz = velEl = 0;
+    azimuth   = state.azimuth   ?? 0;
+    elevation = state.elevation ?? 0;
+    _zoom     = state.zoom      ?? 1.0;
+    if (brainGroup) brainGroup.scale.setScalar(_zoom);
+  }
+
+  return { init, setActivations, setBlend, setZoom, setFOV, setMode, setParticleScale, onReady, setSingleView, clearSingleView, getCamera, addToBrainGroup, removeFromBrainGroup, getViewState, setViewState };
 })();

@@ -13,6 +13,7 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/OBJLoader.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/renderers/CSS2DRenderer.js"></script>
 </head>
 <body>
 
@@ -26,7 +27,6 @@
       </div>
     </div>
 
-    <!-- EEG-style waveform decoration -->
     <div class="hdr-wave" aria-hidden="true">
       <svg viewBox="0 0 240 20" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none">
         <polyline points="0,10 12,10 17,3 22,17 27,3 32,17 37,10 52,10 57,5 62,15 67,5 72,15 77,10 92,10 95,7 100,13 105,10 120,10 125,4 130,16 135,10 150,10 155,6 160,14 165,10 180,10 184,8 188,12 192,10 210,10 215,5 220,15 225,10 240,10"/>
@@ -59,103 +59,160 @@
   <!-- ═══════════════════════════════ MAIN ════════════════════════════════ -->
   <main>
 
-    <!-- ACQ-001 · Input Acquisition ─────────────────────────────────────── -->
-    <div class="acq-panel">
+    <!-- ── LEFT SIDEBAR ────────────────────────────────────────────────────── -->
+    <aside class="sidebar">
+
+      <!-- ACQ-001 header -->
       <div class="panel-hdr">
         <span class="p-code">ACQ&#8209;001</span>
-        <span class="p-label">INPUT ACQUISITION</span>
+        <span class="p-label">INPUT ACQ</span>
         <span class="p-rule" aria-hidden="true"></span>
-        <span class="p-meta">DIAG_RUN_04 &nbsp;·&nbsp; SESSION 0x3F2A &nbsp;·&nbsp; OPERATOR CTRL</span>
       </div>
-      <div class="toolbar">
-        <div class="toolbar-group">
 
-          <label class="btn" for="videoInput">
-            <!-- upload icon -->
-            <svg class="ico" viewBox="0 0 12 12" xmlns="http://www.w3.org/2000/svg">
-              <rect x="1" y="4.5" width="10" height="7" rx="0" fill="none" stroke="currentColor" stroke-width="1.1"/>
-              <line x1="6" y1="0.5" x2="6" y2="7.5" stroke="currentColor" stroke-width="1.1"/>
-              <polyline points="3.5,3 6,0.5 8.5,3" fill="none" stroke="currentColor" stroke-width="1.1"/>
-            </svg>
-            Load Sequence
-            <input type="file" id="videoInput" accept="video/*" hidden />
-          </label>
+      <!-- Action buttons -->
+      <div class="sb-actions">
+        <label class="btn" for="videoInput">
+          <svg class="ico" viewBox="0 0 12 12" xmlns="http://www.w3.org/2000/svg">
+            <rect x="1" y="4.5" width="10" height="7" rx="0" fill="none" stroke="currentColor" stroke-width="1.1"/>
+            <line x1="6" y1="0.5" x2="6" y2="7.5" stroke="currentColor" stroke-width="1.1"/>
+            <polyline points="3.5,3 6,0.5 8.5,3" fill="none" stroke="currentColor" stroke-width="1.1"/>
+          </svg>
+          Load Sequence
+          <input type="file" id="videoInput" accept="video/*" hidden />
+        </label>
 
-          <button id="webcamBtn" class="btn">
-            <!-- aperture icon -->
-            <svg class="ico" viewBox="0 0 12 12" xmlns="http://www.w3.org/2000/svg">
-              <circle cx="6" cy="6" r="4.5" fill="none" stroke="currentColor" stroke-width="1.1"/>
-              <circle cx="6" cy="6" r="1.5" fill="currentColor" opacity="0.7"/>
-            </svg>
-            Live Capture
-          </button>
+        <button id="webcamBtn" class="btn">
+          <svg class="ico" viewBox="0 0 12 12" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="6" cy="6" r="4.5" fill="none" stroke="currentColor" stroke-width="1.1"/>
+            <circle cx="6" cy="6" r="1.5" fill="currentColor" opacity="0.7"/>
+          </svg>
+          Live Capture
+        </button>
 
-          <button id="stopBtn" class="btn btn-danger" disabled>
-            <!-- square icon -->
-            <svg class="ico" viewBox="0 0 12 12" xmlns="http://www.w3.org/2000/svg">
-              <rect x="2.5" y="2.5" width="7" height="7" fill="currentColor" opacity="0.8"/>
-            </svg>
-            Terminate
-          </button>
+        <button id="stopBtn" class="btn btn-danger" disabled>
+          <svg class="ico" viewBox="0 0 12 12" xmlns="http://www.w3.org/2000/svg">
+            <rect x="2.5" y="2.5" width="7" height="7" fill="currentColor" opacity="0.8"/>
+          </svg>
+          Terminate
+        </button>
+      </div>
 
+      <!-- SEQ-A1 · Video Sequence ──────────────────────────────────────────── -->
+      <div id="videoWrapper" class="sb-media hidden">
+        <div class="sb-media-hdr">
+          <span class="p-code">SEQ&#8209;A1</span>
+          <span class="p-label">VIDEO SEQUENCE</span>
         </div>
-        <div class="t-sep"></div>
-        <div class="toolbar-group">
-          <button id="viewMeshBtn" class="btn btn-active">
-            <svg class="ico" viewBox="0 0 12 12" xmlns="http://www.w3.org/2000/svg">
-              <circle cx="6" cy="6" r="4.5" fill="none" stroke="currentColor" stroke-width="1.1"/>
-              <line x1="1.5" y1="6" x2="10.5" y2="6" stroke="currentColor" stroke-width="0.9" opacity=".6"/>
-              <line x1="6" y1="1.5" x2="6" y2="10.5" stroke="currentColor" stroke-width="0.9" opacity=".6"/>
-            </svg>
-            Surface
-          </button>
-          <button id="viewParticlesBtn" class="btn">
-            <svg class="ico" viewBox="0 0 12 12" xmlns="http://www.w3.org/2000/svg">
-              <circle cx="3"  cy="5"  r="0.9" fill="currentColor"/>
-              <circle cx="6"  cy="3"  r="1.2" fill="currentColor"/>
-              <circle cx="9"  cy="5"  r="0.7" fill="currentColor"/>
-              <circle cx="5"  cy="8"  r="1.4" fill="currentColor"/>
-              <circle cx="8"  cy="8.5" r="0.8" fill="currentColor"/>
-              <circle cx="2"  cy="8"  r="0.6" fill="currentColor"/>
-            </svg>
-            Particles
-          </button>
-          <button id="viewGraphBtn" class="btn">
-            <svg class="ico" viewBox="0 0 12 12" xmlns="http://www.w3.org/2000/svg">
-              <circle cx="2"  cy="6"   r="1.3" fill="none" stroke="currentColor" stroke-width="0.9"/>
-              <circle cx="6"  cy="2"   r="1.3" fill="none" stroke="currentColor" stroke-width="0.9"/>
-              <circle cx="10" cy="6"   r="1.3" fill="none" stroke="currentColor" stroke-width="0.9"/>
-              <circle cx="6"  cy="10"  r="1.3" fill="none" stroke="currentColor" stroke-width="0.9"/>
-              <line x1="3.2"  y1="5.4" x2="4.9" y2="2.7"  stroke="currentColor" stroke-width="0.8"/>
-              <line x1="7.1"  y1="2.7" x2="8.8" y2="5.4"  stroke="currentColor" stroke-width="0.8"/>
-              <line x1="8.8"  y1="6.6" x2="7.1" y2="9.3"  stroke="currentColor" stroke-width="0.8"/>
-              <line x1="4.9"  y1="9.3" x2="3.2" y2="6.6"  stroke="currentColor" stroke-width="0.8"/>
-            </svg>
-            Graph
-          </button>
+
+        <video id="videoPreview" controls></video>
+
+        <div class="sb-row">
+          <span class="sm-k">FRAME</span>
+          <span id="frameInfo" class="sm-v">—</span>
         </div>
-        <div class="t-sep"></div>
-        <div class="toolbar-group">
-          <span class="ctrl-lbl">FOV</span>
-          <input type="range" id="fovSlider" min="10" max="90" step="1" value="38" style="width:64px" />
-          <span id="fovVal" class="sm-v">38°</span>
-          <button id="zoomResetBtn" class="btn" style="margin-left:6px">
+
+        <div class="sb-divider"></div>
+
+        <!-- Loop control -->
+        <div class="sb-loop">
+          <button id="loopBtn" class="btn btn-sm">
             <svg class="ico" viewBox="0 0 12 12" xmlns="http://www.w3.org/2000/svg">
-              <circle cx="6" cy="6" r="4.5" fill="none" stroke="currentColor" stroke-width="1.1"/>
-              <line x1="6" y1="3.5" x2="6" y2="8.5" stroke="currentColor" stroke-width="1.1"/>
-              <line x1="3.5" y1="6" x2="8.5" y2="6" stroke="currentColor" stroke-width="1.1"/>
+              <path d="M1.5,4 Q1.5,1.5 4,1.5 L8,1.5" fill="none" stroke="currentColor" stroke-width="1.05" stroke-linecap="round"/>
+              <polyline points="6,0 8,1.5 6,3" fill="none" stroke="currentColor" stroke-width="1.05" stroke-linecap="round" stroke-linejoin="round"/>
+              <path d="M10.5,8 Q10.5,10.5 8,10.5 L4,10.5" fill="none" stroke="currentColor" stroke-width="1.05" stroke-linecap="round"/>
+              <polyline points="6,9 4,10.5 6,12" fill="none" stroke="currentColor" stroke-width="1.05" stroke-linecap="round" stroke-linejoin="round"/>
             </svg>
-            1:1
+            LOOP SEQ
           </button>
+          <div id="loopStatus" class="loop-status hidden">
+            <span class="loop-pip" aria-hidden="true"></span>
+            <span class="sm-k">CYCLE</span>
+            <span id="cycleNum" class="loop-val">001</span>
+            <span class="loop-sep">·</span>
+            <span id="loopFreq" class="loop-val">— Hz</span>
+          </div>
         </div>
-        <div class="t-sep"></div>
-        <div class="toolbar-group">
-          <span class="ctrl-lbl">FRAME BLEND</span>
-          <input type="range" id="blendSlider" min="0" max="1" step="0.01" value="0.5" style="width:72px" />
-          <span id="blendVal" class="sm-v">0.50</span>
+
+        <div class="sb-divider"></div>
+
+        <!-- Volume -->
+        <div class="sb-vol">
+          <svg class="ico" viewBox="0 0 12 12" xmlns="http://www.w3.org/2000/svg" style="opacity:.4;flex-shrink:0">
+            <polygon points="1,4 4,4 7,1 7,11 4,8 1,8" fill="none" stroke="currentColor" stroke-width="1.05"/>
+            <path d="M8.5,3.5 Q10.5,6 8.5,8.5" fill="none" stroke="currentColor" stroke-width="1.05" stroke-linecap="round"/>
+          </svg>
+          <input type="range" id="volumeSlider" min="0" max="1" step="0.01" value="1" style="flex:1" />
+          <span id="volumeVal" class="sm-v">100%</span>
         </div>
-        <div class="t-sep"></div>
-        <div class="toolbar-group">
+      </div>
+
+      <!-- LIVE-01 · Live Capture ───────────────────────────────────────────── -->
+      <div id="webcamWrapper" class="sb-media hidden">
+        <div class="sb-media-hdr">
+          <span class="p-code">LIVE&#8209;01</span>
+          <span class="p-label">LIVE CAPTURE</span>
+          <span class="live-dot" aria-hidden="true"></span>
+        </div>
+        <video id="webcamPreview" autoplay muted playsinline></video>
+        <div class="sb-row">
+          <span class="sm-k">ACQ RATE</span>
+          <span class="sm-v">&#916;t: 3.0s &nbsp;·&nbsp; CONT</span>
+        </div>
+      </div>
+
+    </aside>
+
+    <!-- ── VIEWPORT AREA ───────────────────────────────────────────────────── -->
+    <div class="viewport-area">
+
+      <!-- Tab bar -->
+      <div class="tab-bar">
+        <button id="viewMeshBtn" class="tab-btn tab-active">
+          <svg class="ico" viewBox="0 0 12 12" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="6" cy="6" r="4.5" fill="none" stroke="currentColor" stroke-width="1.1"/>
+            <line x1="1.5" y1="6" x2="10.5" y2="6" stroke="currentColor" stroke-width="0.9" opacity=".6"/>
+            <line x1="6" y1="1.5" x2="6" y2="10.5" stroke="currentColor" stroke-width="0.9" opacity=".6"/>
+          </svg>
+          Surface
+        </button>
+        <button id="viewParticlesBtn" class="tab-btn">
+          <svg class="ico" viewBox="0 0 12 12" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="3"  cy="5"   r="0.9" fill="currentColor"/>
+            <circle cx="6"  cy="3"   r="1.2" fill="currentColor"/>
+            <circle cx="9"  cy="5"   r="0.7" fill="currentColor"/>
+            <circle cx="5"  cy="8"   r="1.4" fill="currentColor"/>
+            <circle cx="8"  cy="8.5" r="0.8" fill="currentColor"/>
+            <circle cx="2"  cy="8"   r="0.6" fill="currentColor"/>
+          </svg>
+          Particles
+        </button>
+        <button id="viewGraphBtn" class="tab-btn">
+          <svg class="ico" viewBox="0 0 12 12" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="2"  cy="6"  r="1.3" fill="none" stroke="currentColor" stroke-width="0.9"/>
+            <circle cx="6"  cy="2"  r="1.3" fill="none" stroke="currentColor" stroke-width="0.9"/>
+            <circle cx="10" cy="6"  r="1.3" fill="none" stroke="currentColor" stroke-width="0.9"/>
+            <circle cx="6"  cy="10" r="1.3" fill="none" stroke="currentColor" stroke-width="0.9"/>
+            <line x1="3.2" y1="5.4" x2="4.9" y2="2.7" stroke="currentColor" stroke-width="0.8"/>
+            <line x1="7.1" y1="2.7" x2="8.8" y2="5.4" stroke="currentColor" stroke-width="0.8"/>
+            <line x1="8.8" y1="6.6" x2="7.1" y2="9.3" stroke="currentColor" stroke-width="0.8"/>
+            <line x1="4.9" y1="9.3" x2="3.2" y2="6.6" stroke="currentColor" stroke-width="0.8"/>
+          </svg>
+          Graph
+        </button>
+        <button id="viewEmotionBtn" class="tab-btn">
+          <svg class="ico" viewBox="0 0 12 12" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="6" cy="6" r="4.5" fill="none" stroke="currentColor" stroke-width="1.1"/>
+            <circle cx="4" cy="5" r="0.7" fill="currentColor"/>
+            <circle cx="8" cy="5" r="0.7" fill="currentColor"/>
+            <path d="M3.8,7.5 Q6,9.2 8.2,7.5" fill="none" stroke="currentColor" stroke-width="1.0" stroke-linecap="round"/>
+          </svg>
+          Affect
+        </button>
+      </div>
+
+      <!-- Surface settings -->
+      <div id="settingsSurface" class="tab-settings">
+        <div class="sg">
           <span class="ctrl-lbl">SPECTRAL MAP</span>
           <select id="colormapSelect">
             <option value="rdbu">RdBu &nbsp;— Blue/Red</option>
@@ -163,116 +220,116 @@
             <option value="viridis">Viridis</option>
           </select>
         </div>
-      </div>
-    </div>
-
-    <!-- NEURAL-VIEW-01 · Cortex Scan Viewport ───────────────────────────── -->
-    <div id="brainContainer">
-      <canvas id="brainCanvas"></canvas>
-
-      <!-- 4-view labels -->
-      <div class="vl vl-tl">ANTERIOR</div>
-      <div class="vl vl-tr">POSTERIOR</div>
-      <div class="vl vl-bl">L &middot; LATERAL</div>
-      <div class="vl vl-br">R &middot; LATERAL</div>
-
-      <!-- crosshair grid divider -->
-      <div class="view-divider" aria-hidden="true">
-        <div class="vd-h"></div>
-        <div class="vd-v"></div>
-      </div>
-
-      <!-- corner reticle -->
-      <div class="reticle" aria-hidden="true">
-        <svg viewBox="0 0 100 100" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
-          <polyline points="0,8 0,0 8,0"/>
-          <polyline points="92,0 100,0 100,8"/>
-          <polyline points="0,92 0,100 8,100"/>
-          <polyline points="92,100 100,100 100,92"/>
-        </svg>
-      </div>
-
-      <!-- loading overlay -->
-      <div id="loadingOverlay">
-        <span class="ld-code">DIAG_RUN_01</span>
-        <div class="spinner"></div>
-        <span id="loadingText">Initializing cortical mesh...</span>
-        <span class="ld-ref">SEQ &nbsp;·&nbsp; 0x00A1B2C3 &nbsp;·&nbsp; STANDBY</span>
-      </div>
-
-      <!-- spectral calibration strip -->
-      <div id="colorbar">
-        <span class="cb-lbl">LOW</span>
-        <canvas id="colorbarCanvas" width="200" height="10"></canvas>
-        <span class="cb-lbl">HIGH</span>
-      </div>
-    </div>
-
-    <!-- SEQ-A1 · Video Sequence ─────────────────────────────────────────── -->
-    <div id="videoWrapper" class="hidden">
-      <div class="stream-hdr">
-        <span class="p-code">SEQ&#8209;A1</span>
-        <span class="p-label">VIDEO SEQUENCE</span>
-      </div>
-      <video id="videoPreview" controls></video>
-      <div class="stream-meta">
-        <span class="sm-k">FRAME TELEMETRY</span>
-        <span id="frameInfo" class="sm-v">FRAME: —</span>
-      </div>
-
-      <!-- LOOP SEQUENCE control -->
-      <div class="loop-ctrl">
-        <button id="loopBtn" class="btn">
-          <!-- cycling arrows icon -->
-          <svg class="ico" viewBox="0 0 12 12" xmlns="http://www.w3.org/2000/svg">
-            <path d="M1.5,4 Q1.5,1.5 4,1.5 L8,1.5" fill="none" stroke="currentColor" stroke-width="1.05" stroke-linecap="round"/>
-            <polyline points="6,0 8,1.5 6,3"    fill="none" stroke="currentColor" stroke-width="1.05" stroke-linecap="round" stroke-linejoin="round"/>
-            <path d="M10.5,8 Q10.5,10.5 8,10.5 L4,10.5" fill="none" stroke="currentColor" stroke-width="1.05" stroke-linecap="round"/>
-            <polyline points="6,9 4,10.5 6,12"  fill="none" stroke="currentColor" stroke-width="1.05" stroke-linecap="round" stroke-linejoin="round"/>
-          </svg>
-          LOOP SEQ
-        </button>
-        <div id="loopStatus" class="loop-status hidden">
-          <span class="loop-pip" aria-hidden="true"></span>
-          <span class="sm-k">CYCLE</span>
-          <span id="cycleNum"  class="loop-val">001</span>
-          <span class="loop-sep">·</span>
-          <span class="sm-k">LOOP&nbsp;FREQ</span>
-          <span id="loopFreq"  class="loop-val">—&nbsp;Hz</span>
+        <div class="t-sep"></div>
+        <div class="sg">
+          <span class="ctrl-lbl">FOV</span>
+          <input type="range" id="fovSlider" min="10" max="90" step="1" value="38" style="width:60px" />
+          <span id="fovVal" class="sm-v">38°</span>
+          <button id="zoomResetBtn" class="btn btn-xs" style="margin-left:8px">1:1</button>
+        </div>
+        <div class="t-sep"></div>
+        <div class="sg">
+          <span class="ctrl-lbl">FRAME BLEND</span>
+          <input type="range" id="blendSlider" min="0" max="1" step="0.01" value="0.5" style="width:64px" />
+          <span id="blendVal" class="sm-v">0.50</span>
         </div>
       </div>
 
-      <div class="vol-ctrl">
-        <!-- speaker icon -->
-        <svg class="ico" viewBox="0 0 12 12" xmlns="http://www.w3.org/2000/svg" style="opacity:.45">
-          <polygon points="1,4 4,4 7,1 7,11 4,8 1,8" fill="none" stroke="currentColor" stroke-width="1.05"/>
-          <path d="M8.5,3.5 Q10.5,6 8.5,8.5" fill="none" stroke="currentColor" stroke-width="1.05" stroke-linecap="round"/>
-          <path d="M9.8,2 Q12.5,6 9.8,10" fill="none" stroke="currentColor" stroke-width="1.05" stroke-linecap="round"/>
-        </svg>
-        <input type="range" id="volumeSlider" min="0" max="1" step="0.01" value="1" />
-        <span id="volumeVal" class="sm-v">100%</span>
+      <!-- Particles settings -->
+      <div id="settingsParticles" class="tab-settings hidden">
+        <div class="sg">
+          <span class="ctrl-lbl">PARTICLE SCALE</span>
+          <input type="range" id="particleScaleSlider" min="0.3" max="3" step="0.05" value="1" style="width:80px" />
+          <span id="particleScaleVal" class="sm-v">1.00×</span>
+        </div>
+        <div class="t-sep"></div>
+        <div class="sg">
+          <span class="ctrl-lbl">FOV</span>
+          <input type="range" id="fovSliderP" min="10" max="90" step="1" value="38" style="width:60px" />
+          <span id="fovValP" class="sm-v">38°</span>
+        </div>
       </div>
-    </div>
 
-    <!-- LIVE-01 · Live Capture ──────────────────────────────────────────── -->
-    <div id="webcamWrapper" class="hidden">
-      <div class="stream-hdr">
-        <span class="p-code">LIVE&#8209;01</span>
-        <span class="p-label">LIVE CAPTURE</span>
-        <span class="live-dot" aria-hidden="true"></span>
+      <!-- Graph settings -->
+      <div id="settingsGraph" class="tab-settings hidden">
+        <div class="sg">
+          <span class="ctrl-lbl">SPECTRAL MAP</span>
+          <select id="colormapSelectGraph">
+            <option value="rdbu">RdBu &nbsp;— Blue/Red</option>
+            <option value="hot">Hot &nbsp;— Blk/Red/Yel</option>
+            <option value="viridis">Viridis</option>
+          </select>
+        </div>
+        <div class="t-sep"></div>
+        <div class="sg" style="opacity:0.35;pointer-events:none">
+          <span class="ctrl-lbl">DK-PARCEL &nbsp;·&nbsp; 20 ROI &nbsp;·&nbsp; 28 EDGES</span>
+        </div>
       </div>
-      <video id="webcamPreview" autoplay muted playsinline></video>
-      <div class="stream-meta">
-        <span class="sm-k">ACQUISITION RATE</span>
-        <span class="sm-v">&#916;t: 3.0s &nbsp;·&nbsp; CONTINUOUS</span>
+
+      <!-- Affect settings -->
+      <div id="settingsAffect" class="tab-settings hidden">
+        <div class="sg" style="opacity:0.35;pointer-events:none">
+          <span class="ctrl-lbl">DK-PARCEL &nbsp;·&nbsp; 9 ROI &nbsp;·&nbsp; AFFECT DECODER</span>
+        </div>
       </div>
-    </div>
+
+      <!-- Brain viewport -->
+      <div id="brainContainer">
+        <canvas id="brainCanvas"></canvas>
+
+        <!-- 4-view labels -->
+        <div class="vl vl-tl">ANTERIOR</div>
+        <div class="vl vl-tr">POSTERIOR</div>
+        <div class="vl vl-bl">L &middot; LATERAL</div>
+        <div class="vl vl-br">R &middot; LATERAL</div>
+
+        <!-- crosshair grid divider -->
+        <div class="view-divider" aria-hidden="true">
+          <div class="vd-h"></div>
+          <div class="vd-v"></div>
+        </div>
+
+        <!-- corner reticle -->
+        <div class="reticle" aria-hidden="true">
+          <svg viewBox="0 0 100 100" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
+            <polyline points="0,8 0,0 8,0"/>
+            <polyline points="92,0 100,0 100,8"/>
+            <polyline points="0,92 0,100 8,100"/>
+            <polyline points="92,100 100,100 100,92"/>
+          </svg>
+        </div>
+
+        <!-- loading overlay -->
+        <div id="loadingOverlay">
+          <span class="ld-code">DIAG_RUN_01</span>
+          <div class="spinner"></div>
+          <span id="loadingText">Initializing cortical mesh...</span>
+          <span class="ld-ref">SEQ &nbsp;·&nbsp; 0x00A1B2C3 &nbsp;·&nbsp; STANDBY</span>
+        </div>
+
+        <!-- spectral calibration strip -->
+        <div id="colorbar">
+          <span class="cb-lbl">LOW</span>
+          <canvas id="colorbarCanvas" width="200" height="10"></canvas>
+          <span class="cb-lbl">HIGH</span>
+        </div>
+      </div>
+
+      <!-- Frame timeline -->
+      <div id="frameTimeline">
+        <canvas id="timelineCanvas"></canvas>
+        <div id="timelinePlayhead"></div>
+        <div id="timelineLabel"></div>
+      </div>
+
+    </div><!-- .viewport-area -->
 
   </main>
 
   <script src="js/colormap.js"></script>
   <script src="js/brain.js"></script>
   <script src="js/graph.js"></script>
+  <script src="js/emotion.js"></script>
   <script src="js/app.js"></script>
 </body>
 </html>
