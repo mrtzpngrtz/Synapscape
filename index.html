@@ -115,28 +115,19 @@
     <div id="brainContainer">
       <canvas id="brainCanvas"></canvas>
 
-      <!-- top-left telemetry -->
-      <div class="vc vc-tl">
-        <span class="vc-id">NEURAL&#8209;VIEW&#8209;01</span>
-        <span class="vc-row"><span class="vc-k">HEMISPHERE</span><span class="vc-v">BILATERAL</span></span>
-        <span class="vc-row"><span class="vc-k">MODALITY</span><span class="vc-v">fMRI / BOLD</span></span>
-        <span class="vc-row"><span class="vc-k">CORTEX_SYNC</span><span class="vc-v hi">98.2%</span></span>
+      <!-- 4-view labels -->
+      <div class="vl vl-tl">ANTERIOR</div>
+      <div class="vl vl-tr">POSTERIOR</div>
+      <div class="vl vl-bl">L &middot; LATERAL</div>
+      <div class="vl vl-br">R &middot; LATERAL</div>
+
+      <!-- crosshair grid divider -->
+      <div class="view-divider" aria-hidden="true">
+        <div class="vd-h"></div>
+        <div class="vd-v"></div>
       </div>
 
-      <!-- top-right telemetry -->
-      <div class="vc vc-tr">
-        <span class="vc-row"><span class="vc-k">AI_CONF</span><span class="vc-v hi">0.994</span></span>
-        <span class="vc-row"><span class="vc-k">LATENCY</span><span class="vc-v">4ms</span></span>
-        <span class="vc-row"><span class="vc-k">MEM_REF</span><span class="vc-v">0x3A4F2C1D</span></span>
-      </div>
-
-      <!-- bottom-left telemetry -->
-      <div class="vc vc-bl">
-        <span class="vc-row"><span class="vc-k">EEG_FREQ</span><span class="vc-v">14Hz</span></span>
-        <span class="vc-row"><span class="vc-k">SNR</span><span class="vc-v">42.1dB</span></span>
-      </div>
-
-      <!-- targeting reticle (corner brackets only) -->
+      <!-- corner reticle -->
       <div class="reticle" aria-hidden="true">
         <svg viewBox="0 0 100 100" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
           <polyline points="0,8 0,0 8,0"/>
@@ -172,6 +163,16 @@
       <div class="stream-meta">
         <span class="sm-k">FRAME TELEMETRY</span>
         <span id="frameInfo" class="sm-v">FRAME: —</span>
+      </div>
+      <div class="vol-ctrl">
+        <!-- speaker icon -->
+        <svg class="ico" viewBox="0 0 12 12" xmlns="http://www.w3.org/2000/svg" style="opacity:.45">
+          <polygon points="1,4 4,4 7,1 7,11 4,8 1,8" fill="none" stroke="currentColor" stroke-width="1.05"/>
+          <path d="M8.5,3.5 Q10.5,6 8.5,8.5" fill="none" stroke="currentColor" stroke-width="1.05" stroke-linecap="round"/>
+          <path d="M9.8,2 Q12.5,6 9.8,10" fill="none" stroke="currentColor" stroke-width="1.05" stroke-linecap="round"/>
+        </svg>
+        <input type="range" id="volumeSlider" min="0" max="1" step="0.01" value="1" />
+        <span id="volumeVal" class="sm-v">100%</span>
       </div>
     </div>
 

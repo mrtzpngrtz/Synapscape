@@ -571,6 +571,107 @@ option { background: #111113; color: var(--text); }
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
+   VOLUME CONTROL
+   ═══════════════════════════════════════════════════════════════════════════ */
+.vol-ctrl {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 18px;
+  border-left: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+/* Styled range (volume slider) */
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 88px;
+  height: 2px;
+  background: var(--border);
+  border-radius: 0;
+  outline: none;
+  cursor: pointer;
+}
+input[type="range"]::-webkit-slider-runnable-track {
+  height: 2px;
+  background: var(--border);
+}
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 9px;
+  height: 9px;
+  margin-top: -3.5px;
+  background: var(--accent);
+  border-radius: 0;
+  cursor: pointer;
+  box-shadow: 0 0 6px rgba(0, 240, 255, 0.45);
+  transition: box-shadow 0.15s;
+}
+input[type="range"]:hover::-webkit-slider-thumb {
+  box-shadow: 0 0 12px rgba(0, 240, 255, 0.7);
+}
+input[type="range"]::-moz-range-track {
+  height: 2px;
+  background: var(--border);
+  border: none;
+}
+input[type="range"]::-moz-range-thumb {
+  width: 9px;
+  height: 9px;
+  background: var(--accent);
+  border: none;
+  border-radius: 0;
+  cursor: pointer;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   4-VIEW LABELS & CROSSHAIR DIVIDER
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* One label per viewport quadrant */
+.vl {
+  position: absolute;
+  font-family: var(--mono);
+  font-size: 8px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--accent);
+  opacity: 0.55;
+  pointer-events: none;
+  padding: 7px 11px;
+  /* tiny frosted pill so it reads over any brain colour */
+  background: rgba(3, 3, 10, 0.55);
+  z-index: 10;
+}
+.vl-tl { top:  0;   left:  0;   }
+.vl-tr { top:  0;   left:  50%; }
+.vl-bl { top:  50%; left:  0;   }
+.vl-br { top:  50%; left:  50%; }
+
+/* Crosshair divider — two thin lines splitting the canvas into 4 */
+.view-divider {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 9;
+}
+.vd-h {
+  position: absolute;
+  top: 50%; left: 0; right: 0;
+  height: 1px;
+  background: var(--border);
+  opacity: 0.7;
+}
+.vd-v {
+  position: absolute;
+  left: 50%; top: 0; bottom: 0;
+  width: 1px;
+  background: var(--border);
+  opacity: 0.7;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
    UTILITY
    ═══════════════════════════════════════════════════════════════════════════ */
 .hidden { display: none !important; }

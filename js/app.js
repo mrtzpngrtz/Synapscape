@@ -23,6 +23,8 @@ const loadingOverlay = document.getElementById('loadingOverlay');
 const loadingText   = document.getElementById('loadingText');
 const colormapSelect = document.getElementById('colormapSelect');
 const colorbarCanvas = document.getElementById('colorbarCanvas');
+const volumeSlider   = document.getElementById('volumeSlider');
+const volumeVal      = document.getElementById('volumeVal');
 
 // ── State ─────────────────────────────────────────────────────────────────
 let videoFrames = [];    // [{activations: [...]}] from /predict
@@ -47,6 +49,19 @@ colormapSelect.addEventListener('change', () => {
   activeColormap = colormapSelect.value;
   drawColorbar(colorbarCanvas, activeColormap);
 });
+
+// ── Volume slider ──────────────────────────────────────────────────────────
+if (volumeSlider) {
+  volumeSlider.addEventListener('input', () => {
+    videoPreview.volume = parseFloat(volumeSlider.value);
+    volumeVal.textContent = Math.round(volumeSlider.value * 100) + '%';
+  });
+  // Sync slider if user adjusts native video controls
+  videoPreview.addEventListener('volumechange', () => {
+    volumeSlider.value = videoPreview.volume;
+    volumeVal.textContent = Math.round(videoPreview.volume * 100) + '%';
+  });
+}
 
 // Check backend health
 checkBackend();
